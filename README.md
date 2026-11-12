@@ -6,10 +6,15 @@ podpowiedzi z lokalnego modelu Bielik, kontrola znaczników, poprawki z plików,
 | Crate | Co robi |
 |---|---|
 | `unity` | odczyt i zapis paczek Unity (UnityFS, pliki serializowane, type trees) |
+| `kopie` | kopie oryginalnych plików gry, bezpieczne przy aktualizacjach gry i między narzędziami (znacznik w folderze gry) |
 | `warsztat-base` | wspólny rdzeń warsztatu: magazyn tłumaczeń, API dla interfejsu, kontrole, słownik, Bielik, poprawki, wydania |
 | `ea2` | Escape Academy 2: wyciąganie tekstów z gry, wgrywanie tłumaczenia (teksty, dialogi Yarn, polskie litery w fontach SDF, katalog Addressables), adapter warsztatu |
 | `warsztat-ea2` | aplikacja warsztatu EA2 (Tauri) |
-| `instalator` | instalator spolszczenia dla graczy (Tauri) |
+| `instalator-base` | wspólny instalator dla graczy: okno, szukanie gry (Xbox, Steam), uprawnienia folderu, instalacja i przywracanie z postępem |
+| `instalator` | instalator spolszczenia EA2: wtyczka do `instalator-base` z łatką, tłumaczeniem, fontami i wyglądem EA2 |
+
+Nowa gra dokłada swoje crate'y: adapter warsztatu (`warsztat::Game`) i instalator (`instalator::Installer` + własny `theme.css`).
+Wspólne części (edytor, kopie, okno instalatora) poprawia się raz, w jednym miejscu.
 
 ## Budowa
 
