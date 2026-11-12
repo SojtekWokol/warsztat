@@ -78,10 +78,12 @@ let seen = 0, wasBuilding = false;
 async function poll() {
   const s = await get("/api/state");
   if (s.error) throw new Error(s.error);
+  $("bielik-state").innerHTML = s.model ? `<span class="ok-text">Bielik działa</span> (${esc(s.model)})` : `<span class="missing">Bielik nie działa.</span> <a href="#" id="bielik-how">Jak go włączyć?</a>`;
+  $("bielik-how")?.addEventListener("click", (e) => { e.preventDefault(); $("bielik-help").classList.remove("hidden"); });
   $("edits").textContent = s.edits ? `Twoich zmian: ${s.edits} ▸ wgraj` : "Wszystko wgrane";
   $("edits").classList.toggle("has", s.edits > 0);
   $("bar-done").style.width = `${(100 * s.done) / s.total}%`;
-  $("progress-text").textContent = `${s.done} z ${s.total}`;
+  $("progress-text").textContent = `${s.done} z ${s.total}` + (s.statuses ? ` · zatwierdzone ${s.statuses.done || 0} · do sprawdzenia ${s.statuses.review || 0}` : "");
   if (s.log.length !== seen) { $("log").textContent = s.log.join("\n") + "\n"; $("log").scrollTop = 1e9; seen = s.log.length; }
   $("build").disabled = $("test").disabled = s.build.running;
   if (s.build.running || wasBuilding) buildOverlay(s, wasBuilding && !s.build.running);
@@ -136,7 +138,7 @@ async function loadPage(key, keep) {
   page = r; $("key").value = r.key;
   $("edit-title").textContent = r.title;
   $("t-rows").innerHTML = table(["#", "Kto", "Angielski", "Polski (w grze)"], r.rows.map((x, n) =>
-    `<tr data-n="${n}" class="${x.pl == null ? "none" : "user"} ${x.status === "review" ? "review" : ""}">
+    `<tr data-n="${n}" class="${x.pl == null ? "none" : "user"} ${x.status === "review" ? "review" : x.status === "done" ? "done" : ""}">
       <td>${n + 1}</td><td title="${esc(x.who || x.key)}">${esc(x.who || (x.src === "y" ? "—" : x.key))}</td><td>${esc(x.en).replace(/\n|<br>/g, "<br>")}</td>
       <td class="pl">${x.pl == null ? "— brak —" : esc(x.pl).replace(/\n|<br>/g, "<br>")}</td></tr>`).join(""), r.rows.length);
   $("t-rows").querySelectorAll("tr[data-n]").forEach((tr) => tr.onclick = () => { pick(+tr.dataset.n); if (NARROW.matches) openDrawer(); });
@@ -167,6 +169,7 @@ function pick(n) {
   $("refs-list").innerHTML = refs.map(([l, v]) => `<dt>${l}</dt><dd>${esc(v)}</dd>`).join("");
   $("pl").value = x.pl ?? "";
   $("review").checked = x.status === "review";
+  $("approved").checked = x.status === "done";
   mode = defaultMode(x);
   renderTabs();
   setGhost(""); check();
@@ -280,6 +283,20 @@ function insertTag(t) {
   typed++; setGhost(""); check();
 }
 $("tag-audit").onclick = () => loadPage("!znaczniki");
+$("bielik-info").onclick = () => $("bielik-help").classList.remove("hidden");
+$("bh-close").onclick = () => $("bielik-help").classList.add("hidden");
+$("bielik-help").onclick = (e) => { if (e.target.id === "bielik-help") $("bielik-help").classList.add("hidden"); };
+// "approved" and "to check" exclude each other
+$("approved").onchange = () => { if ($("approved").checked) $("review").checked = false; };
+$("review").onchange = () => { if ($("review").checked) $("approved").checked = false; };
+$("approve-page").onclick = async () => {
+  if (!page) return;
+  const ids = page.rows.filter((x) => x.pl != null && x.status === "draft").map((x) => x.id);
+  if (!ids.length) return say("Na tej stronie nie ma szkiców do zatwierdzenia.");
+  if (!confirm(`Zatwierdzić ${ids.length} kwestii na tej stronie?`)) return;
+  report(await post("/api/approve", { ids }));
+  loadPage(page.key, current);
+};
 
 // Grey suggestion drawn in a mirror layer under the transparent textarea, only when the caret is at the end.
 function setGhost(text) {
@@ -320,7 +337,7 @@ $("pl").addEventListener("click", () => { if (ghost && !atEnd()) setGhost(""); }
 async function save(next) {
   if (current < 0) return;
   const x = page.rows[current];
-  const r = await post("/api/save", { id: x.id, pl: $("pl").value, status: $("review").checked ? "review" : "draft", everywhere: $("everywhere").checked });
+  const r = await post("/api/save", { id: x.id, pl: $("pl").value, status: $("approved").checked ? "done" : $("review").checked ? "review" : "draft", everywhere: $("everywhere").checked });
   if (r.error) return say(r.error);
   poll();
   await loadPage(page.key, next ? Math.min(current + 1, page.rows.length - 1) : current);

@@ -128,6 +128,7 @@ button:disabled { opacity: .5; cursor: default; }
 .table tr.none td.pl { color: var(--t3); font-style: italic; }
 .table tr.user td.pl { color: var(--clue); }
 .table tr.review td.pl { color: var(--warn); }
+.table tr.done td.pl { color: var(--done); }
 .table tr.bad td.pl { text-decoration: underline wavy var(--bad); text-underline-offset: 3px; }
 .table tr.sel td.pl { color: var(--ink); }
 .table .small { color: var(--t3); }
@@ -384,3 +385,16 @@ nav button { flex: none; }
 ::-webkit-scrollbar-corner { background: var(--plum); }
 ::-webkit-scrollbar-button { display: none; }
 nav::-webkit-scrollbar { display: none; }
+
+/* Bielik help */
+button.mini { height: 22px; width: 22px; padding: 0; margin-left: 6px; font: 800 13px/1 var(--text); box-shadow: none; border-width: 2px; vertical-align: 2px; }
+#bielik-help { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; background: rgba(0,0,0,.55); backdrop-filter: blur(3px); }
+#bielik-help.hidden { display: none; }
+.help-card-big { max-width: 640px; max-height: 86vh; overflow: auto; }
+.help-card-big h3 { margin: 14px 0 4px; font: 400 16px/1.2 var(--display); color: var(--clue); }
+.help-card-big ul, .help-card-big ol { margin: 4px 0 8px 20px; padding: 0; color: var(--t2); }
+.help-card-big li { margin: 4px 0; }
+.help-card-big code { font: 14px var(--key); background: var(--ink); color: var(--clue); padding: 1px 6px; border-radius: 4px; user-select: all; }
+#bielik-state .ok-text { color: var(--done); font-weight: 800; }
+#bielik-state .missing { color: var(--warn); font-weight: 800; }
+#bielik-state a { color: var(--clue); }

@@ -97,7 +97,8 @@
         <button id="load">Wczytaj</button>
         <button id="tag-audit" title="Pokaż wszystkie kwestie, w których znaczniki <…> albo kody {…} różnią się od oryginału">Sprawdź znaczniki</button>
         <span id="edit-title"></span>
-        <button id="build" class="red right">Wgraj do gry</button>
+        <button id="approve-page" class="right" title="Zatwierdź wszystkie szkice na tej stronie (kwestie „do sprawdzenia” zostają, jak są)">Zatwierdź stronę</button>
+        <button id="build" class="red">Wgraj do gry</button>
       </div>
       <div class="editor">
         <div class="table rows" id="t-rows"></div>
@@ -122,7 +123,8 @@
           </div>
           <div class="actions">
             <label><input type="checkbox" id="everywhere"> zmień w każdym miejscu z tym tekstem</label>
-            <label><input type="checkbox" id="review"> do sprawdzenia</label>
+            <label title="Kwestia wymaga sprawdzenia w grze (np. zmieniona zagadka)"><input type="checkbox" id="review"> do sprawdzenia</label>
+            <label title="Kwestia przeczytana i poprawiona przez człowieka"><input type="checkbox" id="approved"> zatwierdzona</label>
             <button id="restore">Usuń tłumaczenie</button>
             <button id="save" class="red">Zapisz kwestię</button>
           </div>
@@ -141,7 +143,8 @@
     <div class="card hidden" id="help-card">
       <h2>Słownik</h2>
       <div id="gloss" class="small"></div>
-      <h2>Warianty od Bielika</h2>
+      <h2>Warianty od Bielika <button id="bielik-info" class="mini" title="Co to jest Bielik i jak go włączyć">?</button></h2>
+      <p class="small" id="bielik-state"></p>
       <div class="row"><input id="hint" placeholder="np. luźniej, zachowaj grę słów"><button id="suggest">Zaproponuj</button></div>
       <ul id="variants"></ul>
       <h2>Jak tłumaczyliśmy wcześniej</h2>
@@ -188,6 +191,27 @@
     <p class="small" id="b-note">Nie uruchamiaj gry, dopóki to okno nie zniknie. Całość trwa zwykle 2–4 minuty.</p>
     <pre id="b-log" class="hidden"></pre>
     <div class="setup-actions"><button id="b-ok" class="red hidden">OK</button></div>
+  </div>
+</div>
+<div id="bielik-help" class="hidden" role="dialog" aria-labelledby="bh-title">
+  <div class="setup-card help-card-big">
+    <h2 id="bh-title">Bielik – polski model językowy w warsztacie</h2>
+    <p><b>Bielik</b> to otwarty model językowy wytrenowany po polsku (projekt SpeakLeash). Działa <b>na Twoim komputerze</b>, bez internetu i bez wysyłania tekstów gdziekolwiek. Warsztat używa go do dwóch rzeczy:</p>
+    <ul>
+      <li><b>Szara podpowiedź w polu tekstu.</b> Kiedy piszesz, Bielik proponuje dokończenie zdania. <b>Tab</b> przyjmuje podpowiedź, dalsze pisanie ją usuwa.</li>
+      <li><b>Warianty tłumaczenia.</b> Przycisk <b>Zaproponuj</b> daje trzy wersje całej kwestii. W polu obok możesz dopisać wskazówkę, np. <i>luźniej</i>, <i>krócej</i>, <i>zachowaj grę słów</i>. Kliknięcie wariantu wstawia go do edytora.</li>
+    </ul>
+    <p>Bielik zna słowniczek tej gry i zasady z glosariusza, ale to tylko pomoc: każdą propozycję przeczytaj i popraw. Bez Bielika warsztat działa normalnie, po prostu bez tych podpowiedzi.</p>
+    <h3>Jak go włączyć</h3>
+    <ol>
+      <li>Zainstaluj <b>Ollama</b> ze strony <b>ollama.com</b> (darmowy program, który uruchamia modele lokalnie).</li>
+      <li>Otwórz terminal (PowerShell) i pobierz model, ok. 7 GB:<br><code>ollama pull SpeakLeash/bielik-11b-v3.0-instruct:Q4_K_M</code></li>
+      <li>Uruchom warsztat ponownie. Warsztat sam włącza Ollamę, a w tej karcie pojawi się „Bielik działa”.</li>
+    </ol>
+    <h3>Czego potrzebuje komputer</h3>
+    <p>Najlepiej karta graficzna z co najmniej 8 GB pamięci (wtedy podpowiedzi przychodzą w sekundę lub dwie). Bez takiej karty model działa na procesorze i potrzebuje ok. 12 GB wolnej pamięci RAM. Działa, ale podpowiedzi mogą przychodzić po kilkanaście sekund.</p>
+    <p>Słabszy komputer? Na ollama.com są też mniejsze wersje Bielika (wpisz „bielik” w wyszukiwarce modeli): mniej pamięci kosztem jakości. Warsztat sam wybiera pobrany model, który ma w nazwie „bielik”.</p>
+    <div class="setup-actions"><button id="bh-close" class="red">Zamknij</button></div>
   </div>
 </div>
 <div id="offline" class="hidden"><div class="setup-card"><h2>Wczytuję warsztat…</h2><p id="offline-msg">Dane warsztatu jeszcze się wczytują.</p></div></div>

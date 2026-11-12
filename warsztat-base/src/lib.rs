@@ -265,7 +265,11 @@ impl Workshop {
                 let (edits, done) = self.with_ctx(|cx| {
                     (snapshots::edits_since_build(self, cx.store), self.entries.iter().filter(|e| !cx.store.pl(&e.id).is_empty()).count())
                 });
-                json!({"edits": edits, "log": self.log.lock().unwrap().iter().cloned().collect::<Vec<_>>(),
+                let mut statuses: BTreeMap<String, usize> = BTreeMap::new();
+                for r in self.store.lock().unwrap().map.values() {
+                    *statuses.entry(r.status.clone()).or_insert(0) += 1;
+                }
+                json!({"edits": edits, "statuses": statuses, "log": self.log.lock().unwrap().iter().cloned().collect::<Vec<_>>(),
                        "model": ollama::model(), "build": self.build.lock().unwrap().clone(),
                        "total": self.entries.len(), "done": done})
             }
@@ -283,6 +287,25 @@ impl Workshop {
                     p.retain(|x| !x.starts_with("znaczniki:"));
                 }
                 json!({"problems": p, "tag_problems": has_tag, "tags_ok": accepted})
+            }
+            "approve" => {
+                // approve drafts (texts read and corrected by a person); "to check" ones stay as they are
+                let ids: Vec<String> = d.get("ids").and_then(|x| x.as_array()).map(|a| a.iter().filter_map(|x| x.as_str().map(String::from)).collect()).unwrap_or_default();
+                let mut n = 0;
+                {
+                    let mut st = self.store.lock().unwrap();
+                    for id in &ids {
+                        if let Some(r) = st.map.get(id).cloned() {
+                            if r.status == "draft" && !r.pl.is_empty() {
+                                st.set(id, &r.pl, "done")?;
+                                n += 1;
+                            }
+                        }
+                    }
+                    st.save()?;
+                }
+                self.say(format!("Zatwierdzono {n} kwestii."));
+                json!({"ok": true, "count": n})
             }
             "tags_ok" => {
                 let (id, ok) = (s(d, "id"), d.get("ok").and_then(|x| x.as_bool()).unwrap_or(true));
