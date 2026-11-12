@@ -68,6 +68,10 @@ pub trait Installer: Send + Sync + 'static {
     fn note_html(&self) -> String {
         String::new()
     }
+    /// Text on the last page after installing (HTML), e.g. where to switch the game to Polish.
+    fn finish_html(&self) -> String {
+        "Uruchom grę i wybierz w ustawieniach język polski.".into()
+    }
     /// Name of the desktop shortcut, e.g. "Escape Academy 2 (PL)".
     fn shortcut_name(&self) -> String {
         format!("{} (PL)", self.game())
@@ -162,7 +166,7 @@ fn info(app: tauri::State<'_, App>) -> Value {
     json!({"game": i.game(), "version": t.version, "count": t.count, "theme": i.theme_css(), "logo": i.logo_html(),
            "note": i.note_html(), "games": find_games(i.as_ref()), "backup": app.backups(),
            "can_update": i.update_repo().is_some(), "settings": updates::settings(&app.dir()),
-           "launcher": updates::launcher_arg(), "shortcut": i.shortcut_name()})
+           "launcher": updates::launcher_arg(), "shortcut": i.shortcut_name(), "finish": i.finish_html()})
 }
 
 #[tauri::command]

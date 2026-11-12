@@ -11,14 +11,22 @@ pub fn export(ws: &Workshop, author: &str) -> Result<Value> {
     let nick: String = collapse_underscores(&nick).chars().take(30).collect();
     let now = chrono::Local::now();
     let path = dir.join(format!("poprawki_{nick}_{}.json", now.format("%Y-%m-%d")));
+    // only what differs from the latest release (all texts when there is no release yet): small files,
+    // easy to attach to a GitHub issue and to review
+    let base = crate::snapshots::releases(&ws.root).first().and_then(|r| crate::snapshots::release_texts(&ws.root, &r.version).map(|t| (r.version.clone(), t)));
     let items: Vec<Value> = {
         let st = ws.store.lock().unwrap();
         st.map
             .iter()
+            .filter(|(id, r)| base.as_ref().map_or(true, |(_, t)| t.get(*id).map_or("", |s| s.as_str()) != r.pl))
             .filter_map(|(id, r)| ws.by_id.get(id).map(|&i| json!({"id": id, "en": ws.entries[i].en, "pl": r.pl, "status": r.status})))
             .collect()
     };
-    let doc = json!({"author": author, "created": now.format("%Y-%m-%d %H:%M").to_string(), "game": ws.game.name(), "items": items});
+    if items.is_empty() {
+        anyhow::bail!("Nie masz zmian względem wydania {} – nie ma czego eksportować.", base.map(|b| b.0).unwrap_or_default());
+    }
+    let doc = json!({"author": author, "created": now.format("%Y-%m-%d %H:%M").to_string(), "game": ws.game.name(),
+                     "base": base.as_ref().map(|b| b.0.clone()), "items": items});
     std::fs::write(&path, crate::store::to_python_json(&doc)?)?;
     let n = doc["items"].as_array().map_or(0, |a| a.len());
     ws.say(format!("Zapisano {n} tłumaczeń w {}. Wyślij ten plik.", path.display()));

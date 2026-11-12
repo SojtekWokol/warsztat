@@ -67,7 +67,7 @@ pub fn releases(root: &Path) -> Vec<Release> {
     out
 }
 
-fn release_texts(root: &Path, version: &str) -> Option<Texts> {
+pub fn release_texts(root: &Path, version: &str) -> Option<Texts> {
     let v: Value = serde_json::from_slice(&std::fs::read(root.join("translations").join("releases").join(format!("{version}.json"))).ok()?).ok()?;
     serde_json::from_value(v.get("texts")?.clone()).ok()
 }

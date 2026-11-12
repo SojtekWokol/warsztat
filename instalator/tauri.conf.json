@@ -6,7 +6,7 @@
   "build": { "frontendDist": "../instalator-base/ui" },
   "app": {
     "windows": [
-      { "title": "Escape Academy 2 – spolszczenie", "width": 720, "height": 640, "minWidth": 600, "minHeight": 560, "center": true, "decorations": false, "resizable": true }
+      { "title": "Escape Academy 2 – spolszczenie", "width": 700, "height": 600, "minWidth": 600, "minHeight": 540, "center": true, "decorations": false, "resizable": true }
     ],
     "security": { "csp": null },
     "withGlobalTauri": true

@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <title>Spolszczenie</title>
-<!-- Shared installer window. The game's look comes from info().theme: it sets these variables and may add
-     its own rules (header, logo, buttons). Defaults below are a plain dark theme. -->
+<!-- Shared installer window: a classic wizard (Dalej / Wstecz / Zakończ). The game's look comes from
+     info().theme: it sets the variables below and may add its own rules (header, logo, buttons). -->
 <style>
   :root {
     --bg:#1b1b1f; --panel:#26262c; --line:#000; --text:#eee; --muted:#aaa; --faint:#777;
@@ -14,38 +14,50 @@
   }
   * { box-sizing:border-box; }
   html, body { margin:0; height:100%; background:var(--bg); color:var(--text); font:600 14px/1.45 var(--font-text); overflow:hidden; }
-  header { height:56px; display:flex; align-items:center; gap:10px; padding:0 8px 0 16px; background:var(--panel); border-bottom:4px solid var(--line); }
+  body { display:flex; flex-direction:column; }
+  header { flex:none; height:56px; display:flex; align-items:center; gap:10px; padding:0 8px 0 16px; background:var(--panel); border-bottom:4px solid var(--line); }
   header .sub { color:var(--muted); font-size:12px; margin-left:4px; }
   .win { margin-left:auto; display:flex; gap:4px; }
   .win button { width:34px; height:30px; padding:0; border:0; border-radius:6px; background:var(--line); color:var(--text); box-shadow:none; font-size:16px; }
   .win button:hover { background:var(--hover); color:var(--hover-text); }
-  main { padding:18px 20px; display:flex; flex-direction:column; gap:14px; height:calc(100% - 56px); overflow:auto; }
-  .card { background:var(--panel); border:3px solid var(--line); border-radius:10px; box-shadow:var(--shadow); padding:14px 16px; }
+  .steps { flex:none; display:flex; gap:6px; padding:12px 24px 0; }
+  .steps span { flex:1; height:6px; border-radius:3px; background:var(--panel); border:1px solid var(--line); }
+  .steps span.on { background:var(--bar); }
+  main { flex:1; min-height:0; overflow:auto; padding:18px 28px; }
+  .page { display:none; }
+  .page.on { display:block; }
+  h1 { margin:6px 0 10px; font:900 26px/1.15 var(--font-display); color:var(--hover); }
   h2 { margin:0 0 8px; font:900 18px/1.2 var(--font-display); color:var(--hover); }
-  p { margin:6px 0; color:var(--muted); }
+  p { margin:8px 0; color:var(--muted); }
+  p.lead { color:var(--text); font-size:15px; }
+  .box { background:var(--panel); border:3px solid var(--line); border-radius:10px; box-shadow:var(--shadow); padding:12px 14px; margin:12px 0; }
   .row { display:flex; gap:8px; align-items:center; }
-  input { flex:1; min-width:0; height:36px; padding:0 10px; background:var(--bg); color:var(--text); border:3px solid var(--line); border-radius:var(--r); font:inherit; }
-  button { height:36px; padding:0 14px; background:var(--button); color:var(--button-text); border:3px solid var(--line); border-radius:var(--r); font:800 13px/1 var(--font-text); cursor:pointer; box-shadow:var(--shadow); }
+  input[type=text] { flex:1; min-width:0; height:36px; padding:0 10px; background:var(--bg); color:var(--text); border:3px solid var(--line); border-radius:var(--r); font:inherit; }
+  button { height:36px; padding:0 16px; background:var(--button); color:var(--button-text); border:3px solid var(--line); border-radius:var(--r); font:800 13px/1 var(--font-text); cursor:pointer; box-shadow:var(--shadow); }
   button:hover { background:var(--hover); color:var(--hover-text); }
   button:active { transform:translateY(2px); box-shadow:none; }
   button:disabled { opacity:.45; cursor:default; transform:none; }
-  button.big { height:46px; padding:0 22px; font:900 17px/1 var(--font-display); background:var(--accent); color:var(--accent-text); }
+  button.big { height:42px; padding:0 24px; font:900 16px/1 var(--font-display); background:var(--accent); color:var(--accent-text); }
   .games { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
   .games button { height:28px; box-shadow:none; font-size:12px; }
   .state { font-weight:800; }
   .ok { color:var(--ok); } .bad { color:var(--bad); } .warn { color:var(--warn); }
-  .bar { height:14px; background:var(--bg); border:3px solid var(--line); border-radius:8px; overflow:hidden; }
+  label.opt { display:flex; gap:10px; align-items:flex-start; color:var(--text); margin:10px 0; cursor:pointer; }
+  label.opt input { flex:none; width:18px; height:18px; margin-top:1px; accent-color:var(--hover); }
+  label.opt small { display:block; color:var(--muted); font-weight:600; margin-top:2px; }
+  .choice { display:block; padding:10px 12px; margin:8px 0; border:3px solid var(--line); border-radius:10px; background:var(--panel); cursor:pointer; }
+  .choice:has(input:checked) { border-color:var(--hover); }
+  .choice input { accent-color:var(--hover); margin-right:8px; }
+  .choice small { display:block; color:var(--muted); font-weight:600; margin:2px 0 0 26px; }
+  dl.summary { display:grid; grid-template-columns:max-content 1fr; gap:4px 14px; margin:0; }
+  dl.summary dt { color:var(--muted); } dl.summary dd { margin:0; word-break:break-all; }
+  .bar { height:16px; background:var(--panel); border:3px solid var(--line); border-radius:8px; overflow:hidden; margin:14px 0 6px; }
   .bar i { display:block; height:100%; width:0; background:var(--bar); transition:width .4s; }
-  pre { margin:8px 0 0; max-height:140px; overflow:auto; background:var(--line); color:var(--muted); padding:8px 10px; border-radius:6px; font:12px/1.4 var(--font-mono); white-space:pre-wrap; }
+  details { margin-top:10px; color:var(--muted); }
+  pre { margin:8px 0 0; max-height:150px; overflow:auto; background:var(--line); color:var(--muted); padding:8px 10px; border-radius:6px; font:12px/1.4 var(--font-mono); white-space:pre-wrap; }
+  footer { flex:none; display:flex; gap:10px; align-items:center; padding:12px 20px; background:var(--panel); border-top:4px solid var(--line); }
+  footer .grow { flex:1; color:var(--faint); font-size:12px; }
   .hidden { display:none !important; }
-  .actions { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
-  small { color:var(--faint); }
-  .banner { border-color:var(--hover); }
-  .banner h2 { color:var(--hover); }
-  label.opt { display:flex; gap:8px; align-items:center; color:var(--muted); font-size:13px; margin-top:8px; cursor:pointer; }
-  label.opt input { flex:none; width:16px; height:16px; accent-color:var(--hover); }
-  .launcher main > .card:not(#launch-card):not(#job) { display:none; }
-  #launch-card h2 { font-size:22px; }
 </style>
 <style id="theme"></style>
 </head>
@@ -54,198 +66,291 @@
   <span id="logo" data-tauri-drag-region></span><span class="sub" id="sub" data-tauri-drag-region></span>
   <div class="win"><button id="w-min" title="Minimalizuj">–</button><button id="w-close" title="Zamknij">×</button></div>
 </header>
+<div class="steps" id="steps"><span></span><span></span><span></span><span></span><span></span></div>
 <main>
-  <div class="card hidden" id="launch-card">
-    <h2 id="lc-title">Uruchamiam grę…</h2>
-    <p id="lc-text">Sprawdzam spolszczenie…</p>
-    <div class="actions hidden" id="lc-actions">
-      <button class="big" id="lc-install">Zainstaluj i graj</button>
-      <button id="lc-play">Graj bez tego</button>
-      <button id="lc-open">Otwórz instalator</button>
+  <!-- 1. welcome / what to do -->
+  <section class="page" id="p-welcome">
+    <h1 id="w-title">Spolszczenie</h1>
+    <p class="lead" id="w-ver"></p>
+    <p id="w-intro">Ten kreator wgra polską wersję do gry. Potrwa to ok. pół minuty, a oryginalne pliki zostaną zachowane – w każdej chwili możesz je przywrócić.</p>
+    <div id="w-update" class="box hidden"><h2 id="wu-title"></h2><p id="wu-text"></p><button id="wu-page" class="hidden">Otwórz stronę wydania</button></div>
+    <div id="w-choices" class="hidden">
+      <p class="lead" id="w-found"></p>
+      <label class="choice"><input type="radio" name="todo" value="install" checked><b id="c-install-label">Zaktualizuj spolszczenie</b><small id="c-install-sub"></small></label>
+      <label class="choice"><input type="radio" name="todo" value="uninstall"><b>Usuń spolszczenie</b><small>Przywraca oryginalne, angielskie pliki gry.</small></label>
     </div>
-  </div>
-  <div class="card banner hidden" id="update-card">
-    <h2 id="up-title">Jest nowa wersja tłumaczenia</h2>
-    <p id="up-text"></p>
-    <div class="actions"><button class="big" id="up-install">Zainstaluj aktualizację</button><button id="up-page" class="hidden">Pobierz nowy instalator</button></div>
-  </div>
-  <div class="card">
-    <h2>Folder gry</h2>
-    <div class="row"><input id="path" spellcheck="false"><button id="pick">Wybierz…</button></div>
+    <p><small>Projekt fanowski, niezwiązany z twórcami gry.</small></p>
+  </section>
+
+  <!-- 2. game folder -->
+  <section class="page" id="p-folder">
+    <h1>Folder gry</h1>
+    <p>Znalazłem grę w tym miejscu. Jeśli masz ją gdzie indziej, wskaż folder przyciskiem <b>Wybierz…</b></p>
+    <div class="row"><input type="text" id="path" spellcheck="false"><button id="pick">Wybierz…</button></div>
     <div class="games" id="games"></div>
     <p class="state" id="state">Szukam gry…</p>
-    <div id="perm" class="hidden">
+    <div id="perm" class="box hidden">
       <p>Aplikacja Xbox blokuje zmiany w folderze gry. Kliknij, a Windows zapyta o zgodę administratora i pozwoli Twojemu kontu zmieniać pliki tej gry.</p>
       <button id="grant">Pozwól na zmiany w folderze gry</button>
     </div>
-  </div>
-  <div class="card">
-    <h2>Spolszczenie</h2>
-    <p id="ver"></p>
-    <div class="actions">
-      <button class="big" id="install" disabled>Zainstaluj</button>
-      <button id="uninstall" disabled>Przywróć wersję oryginalną</button>
-      <button id="launch">Uruchom grę</button>
+  </section>
+
+  <!-- 3. options + summary -->
+  <section class="page" id="p-options">
+    <h1 id="o-title">Gotowe do instalacji</h1>
+    <div id="o-opts">
+      <label class="opt"><input type="checkbox" id="opt-shortcut" checked><span>Utwórz skrót „<span id="sc-name"></span>” na pulpicie<small>Uruchamia grę i przed każdym startem sprawdza, czy spolszczenie jest na miejscu (aktualizacja gry je usuwa) i czy nie ma nowszej wersji.</small></span></label>
+      <label class="opt" id="opt-auto-row"><input type="checkbox" id="opt-auto" checked><span>Sprawdzaj nowe wersje tłumaczenia<small>Pobiera z GitHuba tylko plik z tekstami. Niczego nie instaluje bez pytania.</small></span></label>
     </div>
-    <p><small><span id="note"></span> Kopie oryginalnych plików trafią do <span id="backup"></span>.</small></p>
-  </div>
-  <div class="card" id="keep-card">
-    <h2>Aktualne spolszczenie</h2>
-    <p>Skrót na pulpicie uruchamia grę i przed każdym startem sprawdza, czy spolszczenie jest na miejscu (aktualizacja gry je usuwa) i czy nie ma nowszej wersji tłumaczenia. Niczego nie instaluje bez pytania.</p>
-    <div class="actions"><button id="shortcut" disabled>Utwórz skrót na pulpicie</button><span id="shortcut-done" class="ok hidden"></span></div>
-    <label class="opt hidden" id="auto-row"><input type="checkbox" id="auto-check"> Sprawdzaj nowe wersje tłumaczenia (pobiera z GitHuba tylko plik z tekstami)</label>
-  </div>
-  <div class="card hidden" id="job">
-    <h2 id="job-title">Instaluję…</h2>
-    <p id="job-stage">Start…</p>
-    <div class="bar"><i id="job-bar"></i></div>
-    <pre id="job-log"></pre>
-  </div>
+    <div class="box">
+      <dl class="summary">
+        <dt>Co</dt><dd id="s-what"></dd>
+        <dt>Gdzie</dt><dd id="s-where"></dd>
+        <dt>Kopie oryginałów</dt><dd id="s-backup"></dd>
+      </dl>
+    </div>
+    <p><small id="note"></small></p>
+  </section>
+
+  <!-- 4. progress -->
+  <section class="page" id="p-progress">
+    <h1 id="g-title">Instaluję…</h1>
+    <p id="g-stage">Start…</p>
+    <div class="bar"><i id="g-bar"></i></div>
+    <p><small>Nie uruchamiaj gry, dopóki to się nie skończy.</small></p>
+    <details><summary>Szczegóły</summary><pre id="g-log"></pre></details>
+  </section>
+
+  <!-- 5. finish -->
+  <section class="page" id="p-finish">
+    <h1 id="f-title">Gotowe!</h1>
+    <p class="lead" id="f-text"></p>
+    <label class="opt" id="f-launch-row"><input type="checkbox" id="f-launch" checked><span>Uruchom grę teraz</span></label>
+    <details id="f-details" class="hidden"><summary>Szczegóły</summary><pre id="f-log"></pre></details>
+  </section>
+
+  <!-- shortcut mode (--graj) -->
+  <section class="page" id="p-launch">
+    <h1 id="lc-title">Uruchamiam grę…</h1>
+    <p class="lead" id="lc-text">Sprawdzam spolszczenie…</p>
+    <div class="bar hidden" id="lc-barbox"><i id="lc-bar"></i></div>
+  </section>
 </main>
+<footer>
+  <span class="grow" id="foot-note"></span>
+  <button id="back">Wstecz</button>
+  <button id="next" class="big">Dalej</button>
+  <button id="cancel">Anuluj</button>
+</footer>
 <script>
 const T = window.__TAURI__, call = (c, a) => T.core.invoke(c, a);
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-let busy = false;
+let INFO = {}, STATUS = null, page = "p-welcome", mode = "install", busy = false;
+const ORDER = ["p-welcome", "p-folder", "p-options", "p-progress", "p-finish"];
 
-async function refresh() {
+function show(id) {
+  page = id;
+  document.querySelectorAll(".page").forEach((p) => p.classList.toggle("on", p.id === id));
+  const n = ORDER.indexOf(id);
+  document.querySelectorAll("#steps span").forEach((s, i) => s.classList.toggle("on", i <= n));
+  $("steps").classList.toggle("hidden", id === "p-launch");
+  nav();
+}
+
+// footer buttons for the current page
+function nav() {
+  const back = $("back"), next = $("next"), cancel = $("cancel");
+  back.classList.toggle("hidden", !["p-folder", "p-options"].includes(page));
+  cancel.classList.toggle("hidden", ["p-finish", "p-progress"].includes(page) || page === "p-launch");
+  next.classList.toggle("hidden", page === "p-progress" || page === "p-launch");
+  next.disabled = false;
+  if (page === "p-welcome") next.textContent = "Dalej";
+  if (page === "p-folder") { next.textContent = "Dalej"; next.disabled = !(STATUS && STATUS.valid && STATUS.writable && !STATUS.running); }
+  if (page === "p-options") next.textContent = mode === "install" ? (STATUS && STATUS.installed ? "Zainstaluj ponownie" : "Zainstaluj") : "Usuń spolszczenie";
+  if (page === "p-finish") next.textContent = "Zakończ";
+}
+
+async function status() {
   const p = $("path").value.trim();
   $("perm").classList.add("hidden");
-  if (!p) { $("state").textContent = "Wskaż folder gry."; $("state").className = "state warn"; return setButtons(false, false); }
+  if (!p) { STATUS = null; $("state").textContent = "Wskaż folder gry."; $("state").className = "state warn"; return nav(); }
   const s = await call("status", { path: p });
-  if (!s.valid) { $("state").textContent = "To nie jest folder tej gry."; $("state").className = "state bad"; return setButtons(false, false); }
+  STATUS = s;
+  if (!s.valid) { $("state").textContent = "To nie jest folder tej gry."; $("state").className = "state bad"; return nav(); }
   if (s.path !== p) $("path").value = s.path;
   if (!s.writable) $("perm").classList.remove("hidden");
-  $("state").textContent = s.running ? "Gra jest uruchomiona – zamknij ją przed instalacją."
-    : s.wiped ? "Gra się zaktualizowała i spolszczenie zniknęło – zainstaluj je ponownie."
-    : s.outdated ? `Zainstalowana wersja ${s.installed_version}, dostępna ${s.available}.`
-    : s.installed ? `Polska wersja jest zainstalowana${s.installed_version ? " (" + s.installed_version + ")" : ""}.` : "Gra znaleziona, spolszczenie nie jest zainstalowane.";
-  $("state").className = "state " + (s.running || s.wiped || s.outdated ? "warn" : s.installed ? "ok" : "");
-  $("shortcut").disabled = !s.installed;
-  window.STATUS = s;
-  $("install").textContent = s.installed ? "Zainstaluj ponownie" : "Zainstaluj";
-  setButtons(s.writable && !s.running, s.installed && s.writable && !s.running);
+  $("state").textContent = s.running ? "Gra jest uruchomiona – zamknij ją, żeby kontynuować."
+    : !s.writable ? "Gra znaleziona, ale folder jest zablokowany do zapisu."
+    : s.wiped ? "Gra się zaktualizowała i spolszczenie zniknęło."
+    : s.installed ? `Gra znaleziona, spolszczenie zainstalowane${s.installed_version ? " (" + s.installed_version + ")" : ""}.` : "Gra znaleziona.";
+  $("state").className = "state " + (s.running || !s.writable ? "warn" : "ok");
+  nav();
+  return s;
 }
-function setButtons(inst, uninst) { $("install").disabled = busy || !inst; $("uninstall").disabled = busy || !uninst; }
 
-async function run(cmd, after) {
-  busy = true; setButtons(false, false);
-  $("job").classList.remove("hidden");
-  $("job-title").textContent = cmd === "install" ? "Instaluję polską wersję…" : "Przywracam wersję oryginalną…";
-  $("job-title").className = ""; $("job-log").textContent = ""; $("job-bar").style.width = "3%";
-  try { await call(cmd, { path: $("path").value.trim() }); } catch (e) { $("job-stage").textContent = String(e); busy = false; return refresh(); }
+// welcome: plain intro, or (translation already there) update / remove
+function welcome() {
+  const s = STATUS;
+  $("w-title").textContent = `Spolszczenie ${INFO.game}`;
+  $("w-ver").textContent = `Wersja tłumaczenia ${INFO.version} · ${INFO.count} przetłumaczonych tekstów`;
+  const there = s && s.valid && (s.installed || s.wiped);
+  $("w-choices").classList.toggle("hidden", !there);
+  $("w-intro").classList.toggle("hidden", !!there);
+  if (there) {
+    $("w-found").textContent = s.wiped ? "Gra się zaktualizowała i spolszczenie zniknęło. Co chcesz zrobić?"
+      : s.outdated ? `Masz zainstalowaną wersję ${s.installed_version}, dostępna jest ${s.available}. Co chcesz zrobić?`
+      : `Spolszczenie jest już zainstalowane${s.installed_version ? " (wersja " + s.installed_version + ")" : ""}. Co chcesz zrobić?`;
+    $("c-install-label").textContent = s.wiped ? "Zainstaluj spolszczenie ponownie" : s.outdated ? `Zaktualizuj do wersji ${s.available}` : "Zainstaluj ponownie";
+    $("c-install-sub").textContent = s.outdated || s.wiped ? "Zalecane." : "Przydaje się, gdy coś w grze wygląda nie tak.";
+  }
+}
+
+function options() {
+  $("o-title").textContent = mode === "install" ? "Gotowe do instalacji" : "Usunięcie spolszczenia";
+  $("o-opts").classList.toggle("hidden", mode !== "install");
+  $("s-what").textContent = mode === "install" ? `spolszczenie ${INFO.version} (${INFO.count} tekstów)` : "przywrócenie oryginalnych plików gry";
+  $("s-where").textContent = $("path").value.trim();
+  $("s-backup").textContent = mode === "install" ? `${INFO.backup} (ok. 1 GB)` : INFO.backup;
+}
+
+async function run(cmd) {
+  busy = true; show("p-progress");
+  $("g-title").textContent = cmd === "install" ? "Instaluję polską wersję…" : "Przywracam wersję oryginalną…";
+  $("g-log").textContent = ""; $("g-bar").style.width = "3%"; $("g-stage").textContent = "Start…";
+  const path = $("path").value.trim();
+  try { await call(cmd, { path }); } catch (e) { return finish(false, String(e), cmd); }
   const t0 = Date.now();
-  const tick = async () => {
-    const j = await call("progress");
-    const m = (j.stage || "").match(/^\[(\d+)\/(\d+)\]\s*(.*)/);
-    if (m) { $("job-stage").textContent = `Etap ${m[1]} z ${m[2]}: ${m[3]}`; $("job-bar").style.width = `${((+m[1] - 0.5) / +m[2]) * 100}%`; }
-    $("job-log").textContent = j.log.join("\n"); $("job-log").scrollTop = 1e9;
-    if (j.running) return setTimeout(tick, 500);
-    busy = false;
-    $("job-bar").style.width = "100%";
-    const secs = Math.round((Date.now() - t0) / 1000);
-    if (j.ok && after) return after();
-    if (j.ok) {
-      $("job-title").textContent = cmd === "install" ? `Gotowe! (${secs} s)` : "Przywrócono wersję oryginalną.";
-      $("job-title").className = "ok";
-      $("job-stage").innerHTML = cmd === "install" ? (window.NOTE || "Uruchom grę.") : "Gra jest znowu w oryginalnej wersji.";
-    } else {
-      $("job-title").textContent = "Nie udało się"; $("job-title").className = "bad";
-      $("job-stage").textContent = (j.log.filter((l) => l.startsWith("Błąd")).pop() || "Szczegóły poniżej.").replace(/^Błąd:\s*/, "");
-    }
-    refresh();
-  };
-  tick();
+  return new Promise((resolve) => {
+    const tick = async () => {
+      const j = await call("progress");
+      const m = (j.stage || "").match(/^\[(\d+)\/(\d+)\]\s*(.*)/);
+      if (m) { $("g-stage").textContent = `Etap ${m[1]} z ${m[2]}: ${m[3]}`; $("g-bar").style.width = `${((+m[1] - 0.5) / +m[2]) * 100}%`; }
+      $("g-log").textContent = j.log.join("\n"); $("g-log").scrollTop = 1e9;
+      if (j.running) return setTimeout(tick, 500);
+      busy = false; $("g-bar").style.width = "100%";
+      const err = (j.log.filter((l) => l.startsWith("Błąd")).pop() || "").replace(/^Błąd:\s*/, "");
+      resolve({ ok: j.ok, secs: Math.round((Date.now() - t0) / 1000), err, log: j.log.join("\n") });
+    };
+    tick();
+  });
 }
 
-$("install").onclick = () => run("install");
-$("up-install").onclick = () => { $("update-card").classList.add("hidden"); run("install"); };
-$("up-page").onclick = () => call("open_url", { url: window.UPDATE_PAGE }).catch((e) => alert(e));
-$("auto-check").onchange = () => call("set_setting", { name: "auto_check", value: $("auto-check").checked });
-$("shortcut").onclick = async () => {
-  try { const p = await call("create_shortcut", { path: $("path").value.trim() }); $("shortcut-done").textContent = "Skrót gotowy: " + p; $("shortcut-done").classList.remove("hidden"); }
-  catch (e) { alert(e); }
-};
+async function finish(ok, err, cmd, secs, log) {
+  show("p-finish");
+  $("f-details").classList.toggle("hidden", !log);
+  $("f-log").textContent = log || "";
+  $("f-launch-row").classList.toggle("hidden", !ok || cmd !== "install");
+  if (!ok) { $("f-title").textContent = "Nie udało się"; $("f-title").className = "bad"; $("f-text").textContent = err || "Szczegóły poniżej."; return; }
+  $("f-title").className = "";
+  $("f-title").textContent = cmd === "install" ? "Gotowe!" : "Spolszczenie usunięte";
+  $("f-text").innerHTML = cmd === "install" ? `Polska wersja jest w grze${secs ? " (" + secs + " s)" : ""}. ${INFO.finish || "Uruchom grę i wybierz w ustawieniach język polski."}` : "Gra jest znowu w oryginalnej, angielskiej wersji.";
+}
 
-// Is there a newer translation on GitHub? Downloads only the texts; shows the banner.
+$("next").onclick = async () => {
+  if (page === "p-welcome") {
+    mode = (document.querySelector("input[name=todo]:checked") || {}).value || "install";
+    if (STATUS && STATUS.installed && $("w-choices").classList.contains("hidden")) mode = "install";
+    show("p-folder"); return status();
+  }
+  if (page === "p-folder") { options(); return show("p-options"); }
+  if (page === "p-options") {
+    if (mode === "install") {
+      await call("set_setting", { name: "auto_check", value: $("opt-auto").checked }).catch(() => {});
+    }
+    const r = await run(mode);
+    if (r && r.ok && mode === "install" && $("opt-shortcut").checked) {
+      try { await call("create_shortcut", { path: $("path").value.trim() }); r.log += "\nSkrót na pulpicie utworzony."; }
+      catch (e) { r.log += "\nNie udało się utworzyć skrótu: " + e; }
+    }
+    if (r) finish(r.ok, r.err, mode, r.secs, r.log);
+    return;
+  }
+  if (page === "p-finish") {
+    if (!$("f-launch-row").classList.contains("hidden") && $("f-launch").checked) await call("launch").catch(() => {});
+    call("quit");
+  }
+};
+$("back").onclick = () => show(ORDER[Math.max(0, ORDER.indexOf(page) - 1)]);
+$("cancel").onclick = () => { if (!busy) call("quit"); };
+$("grant").onclick = async () => { try { await call("grant", { path: $("path").value.trim() }); } catch (e) { alert(e); } status(); };
+$("pick").onclick = async () => { const d = await T.dialog.open({ directory: true, title: "Wskaż folder gry" }); if (d) { $("path").value = d; status(); } };
+$("path").addEventListener("change", status);
+$("wu-page").onclick = () => call("open_url", { url: window.UPDATE_PAGE }).catch((e) => alert(e));
+$("w-min").onclick = () => T.window.getCurrentWindow().minimize();
+$("w-close").onclick = () => { if (!busy) T.window.getCurrentWindow().close(); };
+
+// newer translation on GitHub: download the texts (or point at a new installer)
 async function checkUpdate() {
   try {
     const u = await call("check_update");
-    if (!u.latest) return null;
     if (u.needs_installer) {
       window.UPDATE_PAGE = u.page;
-      $("up-title").textContent = `Jest wersja ${u.latest} – potrzebny nowy instalator`;
-      $("up-text").textContent = "Ta wersja zmienia sposób instalacji, więc nie da się jej pobrać tutaj. Pobierz nowy instalator ze strony wydania.";
-      $("up-install").classList.add("hidden"); $("up-page").classList.remove("hidden");
-      $("update-card").classList.remove("hidden");
+      $("wu-title").textContent = `Jest wersja ${u.latest} – potrzebny nowy instalator`;
+      $("wu-text").textContent = "Ta wersja zmienia sposób instalacji. Pobierz nowy instalator ze strony wydania.";
+      $("wu-page").classList.remove("hidden"); $("w-update").classList.remove("hidden");
     }
     return u;
   } catch (e) { return null; }
 }
-function showOutdatedBanner(s, v) {
-  if (!(s && s.valid && (s.outdated || s.wiped))) return;
-  $("up-title").textContent = s.wiped ? "Spolszczenie zniknęło po aktualizacji gry" : `Jest nowa wersja tłumaczenia: ${s.available}`;
-  $("up-text").textContent = s.wiped ? "Gra podmieniła swoje pliki. Kliknij, żeby wgrać spolszczenie ponownie." : `Masz zainstalowaną wersję ${s.installed_version}. Aktualizacja trwa ok. pół minuty.`;
-  $("update-card").classList.remove("hidden");
-}
 
-// The desktop shortcut (--graj): check, maybe install, start the game, close.
-async function launcherFlow(path) {
-  document.body.classList.add("launcher");
-  const card = $("launch-card"); card.classList.remove("hidden");
-  const done = async (msg) => { $("lc-text").textContent = msg; try { await call("launch"); } catch (e) { $("lc-text").textContent = String(e); return; } setTimeout(() => call("quit"), 1500); };
-  if (window.SETTINGS.auto_check) { $("lc-text").textContent = "Sprawdzam, czy jest nowa wersja tłumaczenia…"; await checkUpdate(); }
-  const s = await call("status", { path });
-  const showActions = (title, text) => { $("lc-title").textContent = title; $("lc-text").textContent = text; $("lc-actions").classList.remove("hidden"); };
-  if (!s.valid) return showActions("Nie znalazłem gry", "Folder gry ze skrótu już nie istnieje. Otwórz instalator i wskaż grę.");
-  if (s.running) return done("Gra już działa.");
+// shortcut mode (--graj): check, maybe update, start the game, close
+async function launcher(path) {
+  show("p-launch");
+  const go = async (msg) => { $("lc-text").textContent = msg; try { await call("launch"); } catch (e) { $("lc-text").textContent = String(e); return; } setTimeout(() => call("quit"), 1500); };
+  if (INFO.settings.auto_check) { $("lc-text").textContent = "Sprawdzam, czy jest nowa wersja tłumaczenia…"; await checkUpdate(); INFO = await call("info"); }
+  $("path").value = path;
+  const s = await status();
+  const ask = (title, text, canInstall) => {
+    $("lc-title").textContent = title; $("lc-text").textContent = text;
+    $("foot-note").textContent = "";
+    $("next").classList.remove("hidden"); $("next").textContent = "Zainstaluj i graj"; $("next").disabled = !canInstall;
+    $("cancel").classList.remove("hidden"); $("cancel").textContent = "Graj bez tego";
+    $("back").classList.remove("hidden"); $("back").textContent = "Otwórz instalator";
+    $("next").onclick = async () => {
+      $("next").classList.add("hidden"); $("cancel").classList.add("hidden"); $("back").classList.add("hidden");
+      $("lc-barbox").classList.remove("hidden");
+      const iv = setInterval(async () => { const j = await call("progress"); const m = (j.stage || "").match(/^\[(\d+)\/(\d+)\]\s*(.*)/); if (m) { $("lc-text").textContent = `Etap ${m[1]} z ${m[2]}: ${m[3]}`; $("lc-bar").style.width = `${((+m[1] - 0.5) / +m[2]) * 100}%`; } }, 500);
+      try { await call("install", { path }); } catch (e) { clearInterval(iv); $("lc-text").textContent = String(e); return; }
+      const wait = async () => { const j = await call("progress"); if (j.running) return setTimeout(wait, 500); clearInterval(iv); if (j.ok) { $("lc-title").textContent = "Gotowe!"; go("Uruchamiam grę…"); } else { $("lc-title").textContent = "Nie udało się"; $("lc-text").textContent = (j.log.filter((l) => l.startsWith("Błąd")).pop() || "").replace(/^Błąd:\s*/, ""); } };
+      wait();
+    };
+    $("cancel").onclick = () => go("Uruchamiam grę…");
+    $("back").onclick = () => location.replace(location.pathname + "?kreator");
+  };
+  if (!s || !s.valid) return ask("Nie znalazłem gry", "Folder gry ze skrótu już nie istnieje. Otwórz instalator i wskaż grę.", false);
+  if (s.running) return go("Gra już działa.");
   if (!s.installed || s.outdated) {
-    showActions(s.outdated ? `Nowa wersja tłumaczenia: ${s.available}` : s.wiped ? "Spolszczenie zniknęło po aktualizacji gry" : "Spolszczenie nie jest zainstalowane",
-      s.writable ? "Zainstalować teraz? Potrwa to ok. pół minuty, potem gra uruchomi się sama." : "Najpierw trzeba odblokować folder gry – otwórz instalator.");
-    $("lc-install").disabled = !s.writable;
-    return;
+    return ask(s.outdated ? `Nowa wersja tłumaczenia: ${s.available}` : s.wiped ? "Spolszczenie zniknęło po aktualizacji gry" : "Spolszczenie nie jest zainstalowane",
+      s.writable ? "Zainstalować teraz? Potrwa to ok. pół minuty, potem gra uruchomi się sama." : "Najpierw trzeba odblokować folder gry – otwórz instalator.", s.writable);
   }
-  done("Spolszczenie jest aktualne. Uruchamiam grę…");
+  go("Spolszczenie jest aktualne. Uruchamiam grę…");
 }
-$("lc-install").onclick = () => { $("lc-actions").classList.add("hidden"); run("install", async () => { $("lc-title").textContent = "Gotowe!"; $("lc-text").textContent = "Uruchamiam grę…"; try { await call("launch"); } catch (e) {} setTimeout(() => call("quit"), 1500); }); };
-$("lc-play").onclick = async () => { try { await call("launch"); } catch (e) {} setTimeout(() => call("quit"), 800); };
-$("lc-open").onclick = () => { document.body.classList.remove("launcher"); $("launch-card").classList.add("hidden"); refresh(); };
-$("uninstall").onclick = () => run("uninstall");
-$("launch").onclick = () => call("launch").catch((e) => alert(e));
-$("grant").onclick = async () => { try { await call("grant", { path: $("path").value.trim() }); } catch (e) { alert(e); } refresh(); };
-$("pick").onclick = async () => { const d = await T.dialog.open({ directory: true, title: "Wskaż folder gry" }); if (d) { $("path").value = d; refresh(); } };
-$("path").addEventListener("change", refresh);
-$("w-min").onclick = () => T.window.getCurrentWindow().minimize();
-$("w-close").onclick = () => T.window.getCurrentWindow().close();
 
 (async () => {
-  const i = await call("info");
-  $("theme").textContent = i.theme;
-  $("logo").innerHTML = i.logo;
-  document.title = `${i.game} – spolszczenie`;
-  $("sub").textContent = `nieoficjalne spolszczenie ${i.game}`;
-  $("ver").textContent = `Wersja tłumaczenia: ${i.version} · ${i.count} przetłumaczonych tekstów`;
-  $("note").innerHTML = i.note; window.NOTE = i.note;
-  $("backup").textContent = i.backup;
-  $("games").innerHTML = i.games.length > 1 ? i.games.map((g) => `<button data-p="${esc(g.path)}">${esc(g.kind)}: ${esc(g.path)}</button>`).join("") : "";
-  $("games").querySelectorAll("button").forEach((b) => b.onclick = () => { $("path").value = b.dataset.p; refresh(); });
-  window.SETTINGS = i.settings || {};
-  $("auto-row").classList.toggle("hidden", !i.can_update);
-  $("auto-check").checked = !!window.SETTINGS.auto_check;
-  if (i.launcher) { $("path").value = i.launcher; return launcherFlow(i.launcher); }
-  if (i.games.length) $("path").value = i.games[0].path;
-  else { $("state").textContent = "Nie znalazłem gry. Wskaż jej folder przyciskiem „Wybierz…”."; $("state").className = "state warn"; }
-  await refresh();
-  if (i.can_update && window.SETTINGS.auto_check) {
+  INFO = await call("info");
+  $("theme").textContent = INFO.theme;
+  $("logo").innerHTML = INFO.logo;
+  document.title = `${INFO.game} – spolszczenie`;
+  $("sub").textContent = `nieoficjalne spolszczenie ${INFO.game}`;
+  $("note").innerHTML = INFO.note || "";
+  $("sc-name").textContent = INFO.shortcut;
+  $("opt-auto-row").classList.toggle("hidden", !INFO.can_update);
+  $("opt-auto").checked = INFO.settings.auto_check !== false;
+  $("games").innerHTML = INFO.games.length > 1 ? INFO.games.map((g) => `<button data-p="${esc(g.path)}">${esc(g.kind)}: ${esc(g.path)}</button>`).join("") : "";
+  $("games").querySelectorAll("button").forEach((b) => b.onclick = () => { $("path").value = b.dataset.p; status(); });
+  if (INFO.launcher && !location.search.includes("kreator")) return launcher(INFO.launcher);
+  if (INFO.games.length) $("path").value = INFO.games[0].path;
+  show("p-welcome");
+  $("foot-note").textContent = INFO.can_update ? "Sprawdzam aktualizacje…" : "";
+  await status();
+  welcome();
+  if (INFO.can_update && INFO.settings.auto_check !== false) {
     const u = await checkUpdate();
-    if (u && u.downloaded) {
-      const i2 = await call("info");
-      $("ver").textContent = `Wersja tłumaczenia: ${i2.version} · ${i2.count} przetłumaczonych tekstów`;
-      await refresh();
-    }
+    if (u && u.downloaded) { INFO = await call("info"); await status(); welcome(); }
   }
-  showOutdatedBanner(window.STATUS);
-  setInterval(() => { if (!busy) refresh(); }, 5000);
+  $("foot-note").textContent = "";
+  setInterval(() => { if (!busy && page === "p-folder") status(); }, 4000);
 })();
 </script>
 </body>

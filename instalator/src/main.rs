@@ -79,6 +79,9 @@ impl instalator::Installer for Ea2 {
     fn launch(&self) -> Result<()> {
         instalator::launch_xbox("Escape Academy 2")
     }
+    fn finish_html(&self) -> String {
+        "Uruchom grę i wybierz w ustawieniach język <b>POLSKI</b> (jeśli nie jest jeszcze wybrany).".into()
+    }
     fn note_html(&self) -> String {
         "Gra musi być zamknięta. Po instalacji wybierz w ustawieniach gry język <b>POLSKI</b>.".into()
     }
