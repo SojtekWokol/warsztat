@@ -1,0 +1,14 @@
+[package]
+name = "warsztat-ea2"
+version = "0.2.0"
+edition = "2021"
+description = "Warsztat polskiego tłumaczenia Escape Academy 2"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde_json = { version = "1", features = ["preserve_order"] }
+warsztat-base = { path = "../warsztat-base" }
+ea2 = { path = "../ea2" }

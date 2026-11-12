@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EA2 PL Warsztat</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header data-tauri-drag-region>
+  <div class="logo" data-tauri-drag-region><span>EA2</span><b>PL</b><i>warsztat tłumaczenia</i></div>
+  <nav id="tabs">
+    <button data-tab="scenes" class="on">Scenki</button>
+    <button data-tab="talks">Rozmowy</button>
+    <button data-tab="rooms">Pokoje</button>
+    <button data-tab="campus">Kampus</button>
+    <button data-tab="other">Inne teksty</button>
+    <button data-tab="names">Nazwy</button>
+    <button data-tab="changes">Zmiany</button>
+    <button data-tab="edit">Edycja</button>
+  </nav>
+  <div id="help" class="badge help" title="Ołówek albo dwa razy wiersz otwiera stronę w edycji.&#10;Ctrl+↑ / Ctrl+↓: poprzednia i następna kwestia.&#10;Ctrl+Enter zapisuje i przechodzi dalej, Tab przyjmuje szarą podpowiedź.">?</div>
+  <button id="edits" class="badge" title="Wgraj wszystkie tłumaczenia do gry (gra musi być zamknięta)"></button>
+  <div id="winctl">
+    <button id="w-min" title="Minimalizuj"><svg class="i" viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
+    <button id="w-max" title="Maksymalizuj"><svg class="i" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="1"/></svg></button>
+    <button id="w-close" title="Zamknij"><svg class="i" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+  </div>
+</header>
+<main>
+  <section id="lists">
+    <div class="pane" id="pane-scenes">
+      <div class="filters">
+        <input id="q-scenes" placeholder="Szukaj: scena, miejsce, postać, tekst">
+        <select id="place-scenes"><option value="">Wszystkie miejsca</option></select>
+        <select id="done-scenes"><option value="">Wszystkie</option><option value="no">Nieskończone</option><option value="yes">Skończone</option></select>
+      </div>
+      <div class="table" id="t-scenes"></div>
+    </div>
+    <div class="pane hidden" id="pane-talks">
+      <div class="filters">
+        <input id="q-talks" placeholder="Szukaj: rozmowa, postać, tekst">
+        <select id="place-talks"><option value="">Wszystkie miejsca</option></select>
+        <select id="done-talks"><option value="">Wszystkie</option><option value="no">Nieskończone</option><option value="yes">Skończone</option></select>
+      </div>
+      <div class="table" id="t-talks"></div>
+    </div>
+    <div class="pane hidden" id="pane-rooms">
+      <div class="filters">
+        <input id="q-rooms" placeholder="Szukaj: pokój, tekst">
+        <select id="done-rooms"><option value="">Wszystkie</option><option value="no">Nieskończone</option><option value="yes">Skończone</option></select>
+      </div>
+      <div class="table" id="t-rooms"></div>
+    </div>
+    <div class="pane hidden" id="pane-campus">
+      <div class="filters">
+        <input id="q-campus" placeholder="Szukaj: miejsce, postać, tekst">
+        <select id="done-campus"><option value="">Wszystkie</option><option value="no">Nieskończone</option><option value="yes">Skończone</option></select>
+      </div>
+      <div class="table" id="t-campus"></div>
+    </div>
+    <div class="pane hidden" id="pane-other">
+      <div class="filters">
+        <input id="q-other" placeholder="Szukaj: dział, tekst">
+        <select id="done-other"><option value="">Wszystkie</option><option value="no">Nieskończone</option><option value="yes">Skończone</option></select>
+      </div>
+      <div class="table" id="t-other"></div>
+    </div>
+    <div class="pane hidden" id="pane-names">
+      <div class="filters">
+        <input id="q-names" placeholder="Szukaj: angielski lub polski tekst">
+        <select id="grp-names"><option value="">Wszystkie rodzaje</option></select>
+        <select id="done-names"><option value="">Wszystkie</option><option value="no">Nieprzetłumaczone</option><option value="yes">Przetłumaczone</option></select>
+        <span class="small right names-hint">Enter zapisuje, Esc cofa.</span>
+      </div>
+      <div class="table" id="t-names"></div>
+    </div>
+    <div class="pane hidden" id="pane-changes">
+      <div class="filters">
+        <div class="seg" id="chg-mode" role="radiogroup" aria-label="Które zmiany">
+          <button data-m="all" class="on">Wszystkie</button>
+          <button data-m="pending">Niewgrane</button>
+          <button data-m="ingame">Wgrane</button>
+        </div>
+        <input id="q-changes" placeholder="Szukaj w zmianach">
+        <span class="right release-box">
+          <input id="rel-version" placeholder="1.0.0" maxlength="12" aria-label="Numer wersji">
+          <button id="rel-make" class="red" title="Zapisz stan wgrany do gry jako wydanie">Wydaj wersję</button>
+        </span>
+      </div>
+      <p class="small chg-info" id="chg-info"></p>
+      <div class="table" id="t-changes"></div>
+    </div>
+    <div class="pane hidden" id="pane-edit">
+      <div class="filters">
+        <input id="key" placeholder="Szukaj: fragment tekstu po polsku lub angielsku, klucz albo strona">
+        <button id="load">Wczytaj</button>
+        <button id="tag-audit" title="Pokaż wszystkie kwestie, w których znaczniki <…> albo kody {…} różnią się od oryginału">Sprawdź znaczniki</button>
+        <span id="edit-title"></span>
+        <button id="build" class="red right">Wgraj do gry</button>
+      </div>
+      <div class="editor">
+        <div class="table rows" id="t-rows"></div>
+        <div class="box" id="editbox">
+          <div class="ed-top"><span class="ed-key" id="ed-key"></span><span class="kind" id="ed-kind"></span></div>
+          <div class="en" id="en"></div>
+          <div class="who" id="who"></div>
+          <div class="note hidden" id="note"><b>Notatka twórców</b><span id="note-text"></span></div>
+          <details class="refs hidden" id="refs"><summary>Jak przetłumaczyli inni</summary><dl id="refs-list"></dl></details>
+          <div class="tagbar" id="tagbar" aria-label="Znaczniki z oryginału"></div>
+          <div class="field">
+            <div class="mirror" id="mirror"></div>
+            <textarea id="pl" spellcheck="true" lang="pl" rows="4"></textarea>
+          </div>
+          <div class="check" id="check"></div>
+          <div class="stage-wrap">
+            <div class="stage-tabs" id="stage-tabs">
+              <button data-m="scene">Scenka</button><button data-m="button">Przycisk</button><button data-m="menu">Menu</button>
+              <button data-m="note">Notatka</button><button data-m="sub">Napisy</button>
+            </div>
+            <div class="stage" id="stage"></div>
+          </div>
+          <div class="actions">
+            <label><input type="checkbox" id="everywhere"> zmień w każdym miejscu z tym tekstem</label>
+            <label><input type="checkbox" id="review"> do sprawdzenia</label>
+            <button id="restore">Usuń tłumaczenie</button>
+            <button id="save" class="red">Zapisz kwestię</button>
+          </div>
+          <div class="hint-line">Szara podpowiedź: <b>Tab</b> przyjmuje, dalsze pisanie ją usuwa. <b>Ctrl+Enter</b> zapisuje i przechodzi dalej.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+  <aside>
+    <div class="card" id="test-card">
+      <h2>Test w grze</h2>
+      <p class="small">Wgraj tłumaczenia, uruchom grę i wybierz w ustawieniach język POLSKI. Przy wgrywaniu gra musi być zamknięta.</p>
+      <div class="progress"><div class="bar"><i id="bar-done"></i></div><span id="progress-text" class="small"></span></div>
+      <div class="row"><button id="test" class="red">Wgraj do gry</button><button id="launch">Uruchom grę</button></div>
+    </div>
+    <div class="card hidden" id="help-card">
+      <h2>Słownik</h2>
+      <div id="gloss" class="small"></div>
+      <h2>Warianty od Bielika</h2>
+      <div class="row"><input id="hint" placeholder="np. luźniej, zachowaj grę słów"><button id="suggest">Zaproponuj</button></div>
+      <ul id="variants"></ul>
+      <h2>Jak tłumaczyliśmy wcześniej</h2>
+      <input id="mem-q" placeholder="szukaj po angielsku lub polsku">
+      <div id="mem" class="small"></div>
+    </div>
+    <div class="card" id="corr-card">
+      <h2>Poprawki</h2>
+      <p class="small">Wyślij swoje tłumaczenia jako plik albo przyjmij plik od kogoś.</p>
+      <div class="row"><input id="corr-author" maxlength="60" placeholder="Twój pseudonim (trafi do pliku)"></div>
+      <div class="row"><button id="corr-export">Eksportuj moje</button><button id="corr-import">Importuj plik</button></div>
+      <input type="file" id="corr-file" accept=".json" class="hidden">
+    </div>
+    <div class="card">
+      <h2>Dziennik</h2>
+      <div id="log" class="small log"></div>
+    </div>
+  </aside>
+</main>
+<div id="drawer-bg" class="hidden" title="Kliknij, żeby zamknąć"></div>
+<div id="drawer" class="hidden">
+  <div class="drawer-bar"><span id="d-pos"></span>
+    <button id="d-prev" title="Poprzednia kwestia (Ctrl+↑)"><svg class="i" viewBox="0 0 24 24"><path d="m18 15-6-6-6 6"/></svg></button>
+    <button id="d-next" title="Następna kwestia (Ctrl+↓)"><svg class="i" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button>
+    <button id="d-close" title="Zamknij (Esc)"><svg class="i" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+  </div>
+  <div id="drawer-body"></div>
+</div>
+<div id="import" class="hidden">
+  <div class="setup-card import-card">
+    <h2>Poprawki z pliku</h2>
+    <p id="imp-head"></p>
+    <div class="imp-tools"><label><input type="checkbox" id="imp-all"> zaznacz wszystkie nowe</label><span id="imp-count" class="small"></span></div>
+    <div id="imp-list"></div>
+    <div class="setup-actions"><button id="imp-cancel">Anuluj</button><button id="imp-accept" class="red">Przyjmij zaznaczone</button></div>
+  </div>
+</div>
+<div id="building" class="hidden" role="alertdialog" aria-live="polite">
+  <div class="setup-card build-card">
+    <h2 id="b-title">Wgrywam do gry…</h2>
+    <p id="b-stage">Start…</p>
+    <div class="bar big"><i id="b-bar"></i></div>
+    <p class="small" id="b-time"></p>
+    <p class="small" id="b-note">Nie uruchamiaj gry, dopóki to okno nie zniknie. Całość trwa zwykle 2–4 minuty.</p>
+    <pre id="b-log" class="hidden"></pre>
+    <div class="setup-actions"><button id="b-ok" class="red hidden">OK</button></div>
+  </div>
+</div>
+<div id="offline" class="hidden"><div class="setup-card"><h2>Wczytuję warsztat…</h2><p id="offline-msg">Dane warsztatu jeszcze się wczytują.</p></div></div>
+<script src="app.js"></script>
+</body>
+</html>

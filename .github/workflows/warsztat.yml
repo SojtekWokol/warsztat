@@ -1,0 +1,32 @@
+# Workshop release: push a tag "warsztat-v0.2.0" and GitHub builds "EA2 Warsztat.exe" and attaches it
+# to a release. Translators put it into their copy of the translation repository.
+name: Warsztat
+
+on:
+  push:
+    tags: ["warsztat-v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Budowa warsztatu
+        run: cargo build --release -p warsztat-ea2
+      - name: Plik
+        shell: bash
+        run: mkdir -p out && cp target/release/warsztat-ea2.exe "out/EA2 Warsztat.exe"
+      - uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: out/EA2 Warsztat.exe
+          body: |
+            Warsztat polskiego tłumaczenia Escape Academy 2.
+            Włóż „EA2 Warsztat.exe” do swojego klonu repozytorium tłumaczenia i uruchom. Przy pierwszym
+            uruchomieniu warsztat sam wyciągnie teksty z Twojej kopii gry.

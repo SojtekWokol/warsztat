@@ -1,0 +1,10 @@
+[workspace]
+resolver = "2"
+members = ["unity", "ea2", "warsztat-base", "warsztat-ea2", "instalator"]
+
+[profile.release]
+opt-level = 3
+strip = true
+
+[profile.dev]
+opt-level = 1

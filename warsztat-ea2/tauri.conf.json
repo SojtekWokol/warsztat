@@ -1,0 +1,15 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "EA2 PL Warsztat",
+  "version": "0.2.0",
+  "identifier": "pl.ea2.warsztat",
+  "build": { "frontendDist": "ui" },
+  "app": {
+    "windows": [
+      { "title": "EA2 PL Warsztat", "width": 1440, "height": 900, "minWidth": 1000, "minHeight": 650, "center": true, "decorations": false }
+    ],
+    "security": { "csp": null },
+    "withGlobalTauri": true
+  },
+  "bundle": { "active": false, "icon": ["icons/icon.ico", "icons/icon.png"] }
+}

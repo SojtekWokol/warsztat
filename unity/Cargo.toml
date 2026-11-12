@@ -1,0 +1,10 @@
+[package]
+name = "unity"
+version = "0.1.0"
+edition = "2021"
+description = "Reading and writing Unity asset bundles (UnityFS) and serialized files, with type trees"
+
+[dependencies]
+lz4_flex = "0.11"
+lzma-rs = "0.3"
+anyhow = "1"
