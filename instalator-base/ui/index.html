@@ -2,53 +2,56 @@
 <html lang="pl">
 <head>
 <meta charset="utf-8">
-<title>Escape Academy 2 – spolszczenie</title>
+<title>Spolszczenie</title>
+<!-- Shared installer window. The game's look comes from info().theme: it sets these variables and may add
+     its own rules (header, logo, buttons). Defaults below are a plain dark theme. -->
 <style>
-  :root { --plum:#22101a; --wine:#3a1626; --wine-2:#4d1d33; --wine-3:#6e2b49; --coral:#c8463f; --clue:#fff06b; --ink:#000;
-          --t1:#f3e7ec; --t2:#c9a9b8; --t3:#93708a; --done:#5fcfb7; --bad:#ff6b6b; --r:8px; }
+  :root {
+    --bg:#1b1b1f; --panel:#26262c; --line:#000; --text:#eee; --muted:#aaa; --faint:#777;
+    --accent:#d04a3f; --accent-text:#fff; --button:#eee; --button-text:#111; --hover:#ffd54a; --hover-text:#111;
+    --ok:#5fcfb7; --bad:#ff6b6b; --warn:#ffd54a; --bar:#ffd54a; --r:8px; --shadow:0 3px 0 #000;
+    --font-text:"Segoe UI", sans-serif; --font-display:Georgia, serif; --font-mono:Consolas, monospace;
+  }
   * { box-sizing:border-box; }
-  html, body { margin:0; height:100%; background:var(--plum); color:var(--t1); font:600 14px/1.45 "Segoe UI", sans-serif; overflow:hidden; }
-  header { height:56px; display:flex; align-items:center; gap:10px; padding:0 8px 0 16px; background:var(--wine); border-bottom:4px solid var(--ink); }
-  .logo { font:900 26px/1 Georgia, serif; color:var(--clue); -webkit-text-stroke:5px var(--ink); paint-order:stroke fill; }
-  .pl { font:900 17px/1 Georgia, serif; background:var(--coral); color:var(--clue); padding:3px 7px 4px; border:3px solid var(--clue); border-radius:6px; transform:rotate(-4deg); -webkit-text-stroke:3px var(--ink); paint-order:stroke fill; }
-  .sub { color:var(--t2); font-size:12px; margin-left:4px; }
+  html, body { margin:0; height:100%; background:var(--bg); color:var(--text); font:600 14px/1.45 var(--font-text); overflow:hidden; }
+  header { height:56px; display:flex; align-items:center; gap:10px; padding:0 8px 0 16px; background:var(--panel); border-bottom:4px solid var(--line); }
+  header .sub { color:var(--muted); font-size:12px; margin-left:4px; }
   .win { margin-left:auto; display:flex; gap:4px; }
-  .win button { width:34px; height:30px; border:0; border-radius:6px; background:var(--ink); color:var(--t1); cursor:pointer; font-size:16px; }
-  .win button:hover { background:var(--clue); color:var(--ink); }
-  #w-close:hover { background:var(--coral); color:var(--t1); }
+  .win button { width:34px; height:30px; padding:0; border:0; border-radius:6px; background:var(--line); color:var(--text); box-shadow:none; font-size:16px; }
+  .win button:hover { background:var(--hover); color:var(--hover-text); }
   main { padding:18px 20px; display:flex; flex-direction:column; gap:14px; height:calc(100% - 56px); overflow:auto; }
-  .card { background:var(--wine); border:3px solid var(--ink); border-radius:10px; box-shadow:0 4px 0 #000; padding:14px 16px; }
-  h2 { margin:0 0 8px; font:900 18px/1.2 Georgia, serif; color:var(--clue); }
-  p { margin:6px 0; color:var(--t2); }
+  .card { background:var(--panel); border:3px solid var(--line); border-radius:10px; box-shadow:var(--shadow); padding:14px 16px; }
+  h2 { margin:0 0 8px; font:900 18px/1.2 var(--font-display); color:var(--hover); }
+  p { margin:6px 0; color:var(--muted); }
   .row { display:flex; gap:8px; align-items:center; }
-  input { flex:1; min-width:0; height:36px; padding:0 10px; background:var(--plum); color:var(--t1); border:3px solid var(--ink); border-radius:var(--r); font:inherit; }
-  button { height:36px; padding:0 14px; background:var(--t1); color:var(--ink); border:3px solid var(--ink); border-radius:var(--r); font:800 13px/1 "Segoe UI", sans-serif; cursor:pointer; box-shadow:0 3px 0 #000; }
-  button:hover { background:var(--clue); }
-  button:active { transform:translateY(2px); box-shadow:0 1px 0 #000; }
+  input { flex:1; min-width:0; height:36px; padding:0 10px; background:var(--bg); color:var(--text); border:3px solid var(--line); border-radius:var(--r); font:inherit; }
+  button { height:36px; padding:0 14px; background:var(--button); color:var(--button-text); border:3px solid var(--line); border-radius:var(--r); font:800 13px/1 var(--font-text); cursor:pointer; box-shadow:var(--shadow); }
+  button:hover { background:var(--hover); color:var(--hover-text); }
+  button:active { transform:translateY(2px); box-shadow:none; }
   button:disabled { opacity:.45; cursor:default; transform:none; }
-  button.big { height:46px; padding:0 22px; font:900 17px/1 Georgia, serif; background:var(--coral); color:var(--clue); -webkit-text-stroke:3px var(--ink); paint-order:stroke fill; }
-  button.big:hover { background:#d8574f; }
+  button.big { height:46px; padding:0 22px; font:900 17px/1 var(--font-display); background:var(--accent); color:var(--accent-text); }
   .games { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
   .games button { height:28px; box-shadow:none; font-size:12px; }
   .state { font-weight:800; }
-  .ok { color:var(--done); } .bad { color:var(--bad); } .warn { color:var(--clue); }
-  .bar { height:14px; background:var(--plum); border:3px solid var(--ink); border-radius:8px; overflow:hidden; }
-  .bar i { display:block; height:100%; width:0; background:var(--clue); transition:width .4s; }
-  pre { margin:8px 0 0; max-height:140px; overflow:auto; background:var(--ink); color:var(--t2); padding:8px 10px; border-radius:6px; font:12px/1.4 Consolas, monospace; white-space:pre-wrap; }
+  .ok { color:var(--ok); } .bad { color:var(--bad); } .warn { color:var(--warn); }
+  .bar { height:14px; background:var(--bg); border:3px solid var(--line); border-radius:8px; overflow:hidden; }
+  .bar i { display:block; height:100%; width:0; background:var(--bar); transition:width .4s; }
+  pre { margin:8px 0 0; max-height:140px; overflow:auto; background:var(--line); color:var(--muted); padding:8px 10px; border-radius:6px; font:12px/1.4 var(--font-mono); white-space:pre-wrap; }
   .hidden { display:none !important; }
   .actions { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
-  small { color:var(--t3); }
+  small { color:var(--faint); }
 </style>
+<style id="theme"></style>
 </head>
 <body>
 <header data-tauri-drag-region>
-  <span class="logo" data-tauri-drag-region>EA2</span><span class="pl">PL</span><span class="sub" data-tauri-drag-region>nieoficjalne spolszczenie Escape Academy 2</span>
+  <span id="logo" data-tauri-drag-region></span><span class="sub" id="sub" data-tauri-drag-region></span>
   <div class="win"><button id="w-min" title="Minimalizuj">–</button><button id="w-close" title="Zamknij">×</button></div>
 </header>
 <main>
   <div class="card">
     <h2>Folder gry</h2>
-    <div class="row"><input id="path" placeholder="…\XboxGames\Escape Academy 2- Back 2 School\Content" spellcheck="false"><button id="pick">Wybierz…</button></div>
+    <div class="row"><input id="path" spellcheck="false"><button id="pick">Wybierz…</button></div>
     <div class="games" id="games"></div>
     <p class="state" id="state">Szukam gry…</p>
     <div id="perm" class="hidden">
@@ -64,7 +67,7 @@
       <button id="uninstall" disabled>Przywróć wersję oryginalną</button>
       <button id="launch">Uruchom grę</button>
     </div>
-    <p><small>Gra musi być zamknięta. Po instalacji wybierz w ustawieniach gry język <b>POLSKI</b>. Kopie oryginalnych plików (ok. 1 GB) trafią do <span id="backup"></span>.</small></p>
+    <p><small><span id="note"></span> Kopie oryginalnych plików trafią do <span id="backup"></span>.</small></p>
   </div>
   <div class="card hidden" id="job">
     <h2 id="job-title">Instaluję…</h2>
@@ -84,7 +87,7 @@ async function refresh() {
   $("perm").classList.add("hidden");
   if (!p) { $("state").textContent = "Wskaż folder gry."; $("state").className = "state warn"; return setButtons(false, false); }
   const s = await call("status", { path: p });
-  if (!s.valid) { $("state").textContent = "To nie jest folder gry Escape Academy 2."; $("state").className = "state bad"; return setButtons(false, false); }
+  if (!s.valid) { $("state").textContent = "To nie jest folder tej gry."; $("state").className = "state bad"; return setButtons(false, false); }
   if (s.path !== p) $("path").value = s.path;
   if (!s.writable) $("perm").classList.remove("hidden");
   $("state").textContent = s.running ? "Gra jest uruchomiona – zamknij ją przed instalacją."
@@ -104,7 +107,7 @@ async function run(cmd) {
   const t0 = Date.now();
   const tick = async () => {
     const j = await call("progress");
-    const m = (j.stage || "").match(/^\[(\d)\/(\d)\]\s*(.*)/);
+    const m = (j.stage || "").match(/^\[(\d+)\/(\d+)\]\s*(.*)/);
     if (m) { $("job-stage").textContent = `Etap ${m[1]} z ${m[2]}: ${m[3]}`; $("job-bar").style.width = `${((+m[1] - 0.5) / +m[2]) * 100}%`; }
     $("job-log").textContent = j.log.join("\n"); $("job-log").scrollTop = 1e9;
     if (j.running) return setTimeout(tick, 500);
@@ -114,7 +117,7 @@ async function run(cmd) {
     if (j.ok) {
       $("job-title").textContent = cmd === "install" ? `Gotowe! (${secs} s)` : "Przywrócono wersję oryginalną.";
       $("job-title").className = "ok";
-      $("job-stage").textContent = cmd === "install" ? "Uruchom grę i wybierz w ustawieniach język POLSKI." : "Gra jest znowu w oryginalnej wersji.";
+      $("job-stage").innerHTML = cmd === "install" ? (window.NOTE || "Uruchom grę.") : "Gra jest znowu w oryginalnej wersji.";
     } else {
       $("job-title").textContent = "Nie udało się"; $("job-title").className = "bad";
       $("job-stage").textContent = (j.log.filter((l) => l.startsWith("Błąd")).pop() || "Szczegóły poniżej.").replace(/^Błąd:\s*/, "");
@@ -128,14 +131,19 @@ $("install").onclick = () => run("install");
 $("uninstall").onclick = () => run("uninstall");
 $("launch").onclick = () => call("launch").catch((e) => alert(e));
 $("grant").onclick = async () => { try { await call("grant", { path: $("path").value.trim() }); } catch (e) { alert(e); } refresh(); };
-$("pick").onclick = async () => { const d = await T.dialog.open({ directory: true, title: "Wskaż folder gry Escape Academy 2" }); if (d) { $("path").value = d; refresh(); } };
+$("pick").onclick = async () => { const d = await T.dialog.open({ directory: true, title: "Wskaż folder gry" }); if (d) { $("path").value = d; refresh(); } };
 $("path").addEventListener("change", refresh);
 $("w-min").onclick = () => T.window.getCurrentWindow().minimize();
 $("w-close").onclick = () => T.window.getCurrentWindow().close();
 
 (async () => {
   const i = await call("info");
+  $("theme").textContent = i.theme;
+  $("logo").innerHTML = i.logo;
+  document.title = `${i.game} – spolszczenie`;
+  $("sub").textContent = `nieoficjalne spolszczenie ${i.game}`;
   $("ver").textContent = `Wersja tłumaczenia: ${i.version} · ${i.count} przetłumaczonych tekstów`;
+  $("note").innerHTML = i.note; window.NOTE = i.note;
   $("backup").textContent = i.backup;
   $("games").innerHTML = i.games.length > 1 ? i.games.map((g) => `<button data-p="${esc(g.path)}">${esc(g.kind)}: ${esc(g.path)}</button>`).join("") : "";
   $("games").querySelectorAll("button").forEach((b) => b.onclick = () => { $("path").value = b.dataset.p; refresh(); });

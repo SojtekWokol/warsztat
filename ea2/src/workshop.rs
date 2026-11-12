@@ -461,7 +461,7 @@ impl Game for Ea2 {
     fn build(&self, root: &Path, log: &mut dyn FnMut(String)) -> Result<()> {
         let game = crate::patch::Game { content: self.content.clone() };
         let store = crate::store::Store::load(&root.join("translations").join("pl.json"))?;
-        let mut originals = crate::originals::Originals::open(&root.join("backup"))?;
+        let mut originals = crate::originals::open(&root.join("backup"))?;
         crate::patch::run(
             crate::patch::Options { game: &game, store: &store, fonts_dir: &root.join("fonts"), fonts: None, originals: &mut originals, out_dir: None },
             log,

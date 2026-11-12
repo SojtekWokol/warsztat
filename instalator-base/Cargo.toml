@@ -1,0 +1,14 @@
+[package]
+name = "instalator-base"
+version = "0.1.0"
+edition = "2021"
+description = "Shared installer for fan translations: window, finding the game (Xbox app, Steam), folder rights, install/restore with progress. Games plug in their patch and their look."
+
+[lib]
+name = "instalator"
+
+[dependencies]
+anyhow = "1"
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+serde_json = { version = "1", features = ["preserve_order"] }

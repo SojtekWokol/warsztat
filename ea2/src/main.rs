@@ -38,7 +38,7 @@ fn main() -> Result<()> {
             }
             let store = store::Store::load(&store_p)?;
             log(format!("translations: {} texts", store.len()));
-            let mut originals = originals::Originals::open(&backup)?;
+            let mut originals = originals::open(&backup)?;
             let t = std::time::Instant::now();
             patch::run(patch::Options { game: &game, store: &store, fonts_dir: &fonts, fonts: None, originals: &mut originals, out_dir: out.as_deref() }, &mut log)?;
             log(format!("done in {:.0} s", t.elapsed().as_secs_f64()));
@@ -48,7 +48,7 @@ fn main() -> Result<()> {
             if patch::game_running() {
                 return Err(anyhow!("Gra jest uruchomiona - zamknij ją i spróbuj ponownie."));
             }
-            let mut originals = originals::Originals::open(&backup)?;
+            let mut originals = originals::open(&backup)?;
             let (done, skipped) = originals.restore(|n| game.place_of(n))?;
             log(format!("restored {done} files, skipped {skipped}"));
             Ok(())

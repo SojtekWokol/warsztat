@@ -17,3 +17,4 @@ regex = "1"
 warsztat-base = { path = "../warsztat-base" }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 texture2ddecoder = "0.1"
+kopie = { path = "../kopie" }

@@ -14,6 +14,8 @@ serde_json = "1"
 
 [dependencies]
 tauri = { version = "2", features = [] }
+instalator-base = { path = "../instalator-base" }
+# direct dependency so the dialog plugin permissions resolve for this app
 tauri-plugin-dialog = "2"
 serde_json = { version = "1", features = ["preserve_order"] }
 ea2 = { path = "../ea2" }

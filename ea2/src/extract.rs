@@ -6,7 +6,6 @@
 //! extracted/yarn2_<lang>.json, yarn2_program.bin, yarn2_scenes.json campus talks (Dialogue project, data.unity3d)
 //! extracted/subtitles.json                                         Gillian's bark subtitles
 //! cache/vn/bg/<name>.jpg, cache/vn/chars/<name>.png                backgrounds and character sprites
-use crate::originals::Originals;
 use crate::pack::{text_of, At, Pack};
 use crate::patch::Game;
 use anyhow::{anyhow, bail, Context, Result};
@@ -18,7 +17,7 @@ use unity::{TypeRegistry, Value as UV};
 
 /// The clean version of a game file: the backup when the game file is the one our patch wrote.
 fn clean(game_file: &Path, backup_dir: &Path) -> Result<PathBuf> {
-    Originals::clean_copy(game_file, backup_dir)
+    crate::originals::clean_copy(game_file, backup_dir)
 }
 
 fn write_json(p: &Path, v: &Value) -> Result<()> {

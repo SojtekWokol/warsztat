@@ -1,0 +1,11 @@
+/* Escape Academy 2 look: plum and wine panels, the game's coral buttons and clue yellow. */
+:root {
+  --bg:#22101a; --panel:#3a1626; --line:#000; --text:#f3e7ec; --muted:#c9a9b8; --faint:#93708a;
+  --accent:#c8463f; --accent-text:#fff06b; --button:#f3e7ec; --button-text:#000; --hover:#fff06b; --hover-text:#000;
+  --ok:#5fcfb7; --bad:#ff6b6b; --warn:#fff06b; --bar:#fff06b;
+}
+#w-close:hover { background:var(--accent); color:var(--text); }
+button.big { -webkit-text-stroke:3px var(--line); paint-order:stroke fill; }
+button.big:hover { background:#d8574f; color:var(--accent-text); }
+.logo { font:900 26px/1 Georgia, serif; color:#fff06b; -webkit-text-stroke:5px #000; paint-order:stroke fill; }
+.pl { margin-left:6px; font:900 17px/1 Georgia, serif; background:#c8463f; color:#fff06b; padding:3px 7px 4px; border:3px solid #fff06b; border-radius:6px; display:inline-block; transform:rotate(-4deg); -webkit-text-stroke:3px #000; paint-order:stroke fill; }

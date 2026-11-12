@@ -3,7 +3,7 @@
   "productName": "EA2 Spolszczenie",
   "version": "0.1.0",
   "identifier": "pl.ea2.spolszczenie",
-  "build": { "frontendDist": "ui" },
+  "build": { "frontendDist": "../instalator-base/ui" },
   "app": {
     "windows": [
       { "title": "Escape Academy 2 – spolszczenie", "width": 720, "height": 640, "minWidth": 600, "minHeight": 560, "center": true, "decorations": false, "resizable": true }

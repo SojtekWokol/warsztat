@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["unity", "ea2", "warsztat-base", "warsztat-ea2", "instalator"]
+members = ["unity", "kopie", "ea2", "warsztat-base", "warsztat-ea2", "instalator-base", "instalator"]
 
 [profile.release]
 opt-level = 3
