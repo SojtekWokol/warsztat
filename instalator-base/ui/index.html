@@ -40,6 +40,12 @@
   .hidden { display:none !important; }
   .actions { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
   small { color:var(--faint); }
+  .banner { border-color:var(--hover); }
+  .banner h2 { color:var(--hover); }
+  label.opt { display:flex; gap:8px; align-items:center; color:var(--muted); font-size:13px; margin-top:8px; cursor:pointer; }
+  label.opt input { flex:none; width:16px; height:16px; accent-color:var(--hover); }
+  .launcher main > .card:not(#launch-card):not(#job) { display:none; }
+  #launch-card h2 { font-size:22px; }
 </style>
 <style id="theme"></style>
 </head>
@@ -49,6 +55,20 @@
   <div class="win"><button id="w-min" title="Minimalizuj">–</button><button id="w-close" title="Zamknij">×</button></div>
 </header>
 <main>
+  <div class="card hidden" id="launch-card">
+    <h2 id="lc-title">Uruchamiam grę…</h2>
+    <p id="lc-text">Sprawdzam spolszczenie…</p>
+    <div class="actions hidden" id="lc-actions">
+      <button class="big" id="lc-install">Zainstaluj i graj</button>
+      <button id="lc-play">Graj bez tego</button>
+      <button id="lc-open">Otwórz instalator</button>
+    </div>
+  </div>
+  <div class="card banner hidden" id="update-card">
+    <h2 id="up-title">Jest nowa wersja tłumaczenia</h2>
+    <p id="up-text"></p>
+    <div class="actions"><button class="big" id="up-install">Zainstaluj aktualizację</button><button id="up-page" class="hidden">Pobierz nowy instalator</button></div>
+  </div>
   <div class="card">
     <h2>Folder gry</h2>
     <div class="row"><input id="path" spellcheck="false"><button id="pick">Wybierz…</button></div>
@@ -68,6 +88,12 @@
       <button id="launch">Uruchom grę</button>
     </div>
     <p><small><span id="note"></span> Kopie oryginalnych plików trafią do <span id="backup"></span>.</small></p>
+  </div>
+  <div class="card" id="keep-card">
+    <h2>Aktualne spolszczenie</h2>
+    <p>Skrót na pulpicie uruchamia grę i przed każdym startem sprawdza, czy spolszczenie jest na miejscu (aktualizacja gry je usuwa) i czy nie ma nowszej wersji tłumaczenia. Niczego nie instaluje bez pytania.</p>
+    <div class="actions"><button id="shortcut" disabled>Utwórz skrót na pulpicie</button><span id="shortcut-done" class="ok hidden"></span></div>
+    <label class="opt hidden" id="auto-row"><input type="checkbox" id="auto-check"> Sprawdzaj nowe wersje tłumaczenia (pobiera z GitHuba tylko plik z tekstami)</label>
   </div>
   <div class="card hidden" id="job">
     <h2 id="job-title">Instaluję…</h2>
@@ -91,14 +117,18 @@ async function refresh() {
   if (s.path !== p) $("path").value = s.path;
   if (!s.writable) $("perm").classList.remove("hidden");
   $("state").textContent = s.running ? "Gra jest uruchomiona – zamknij ją przed instalacją."
-    : s.installed ? "Polska wersja jest zainstalowana." : "Gra znaleziona, spolszczenie nie jest zainstalowane.";
-  $("state").className = "state " + (s.running ? "warn" : s.installed ? "ok" : "");
+    : s.wiped ? "Gra się zaktualizowała i spolszczenie zniknęło – zainstaluj je ponownie."
+    : s.outdated ? `Zainstalowana wersja ${s.installed_version}, dostępna ${s.available}.`
+    : s.installed ? `Polska wersja jest zainstalowana${s.installed_version ? " (" + s.installed_version + ")" : ""}.` : "Gra znaleziona, spolszczenie nie jest zainstalowane.";
+  $("state").className = "state " + (s.running || s.wiped || s.outdated ? "warn" : s.installed ? "ok" : "");
+  $("shortcut").disabled = !s.installed;
+  window.STATUS = s;
   $("install").textContent = s.installed ? "Zainstaluj ponownie" : "Zainstaluj";
   setButtons(s.writable && !s.running, s.installed && s.writable && !s.running);
 }
 function setButtons(inst, uninst) { $("install").disabled = busy || !inst; $("uninstall").disabled = busy || !uninst; }
 
-async function run(cmd) {
+async function run(cmd, after) {
   busy = true; setButtons(false, false);
   $("job").classList.remove("hidden");
   $("job-title").textContent = cmd === "install" ? "Instaluję polską wersję…" : "Przywracam wersję oryginalną…";
@@ -114,6 +144,7 @@ async function run(cmd) {
     busy = false;
     $("job-bar").style.width = "100%";
     const secs = Math.round((Date.now() - t0) / 1000);
+    if (j.ok && after) return after();
     if (j.ok) {
       $("job-title").textContent = cmd === "install" ? `Gotowe! (${secs} s)` : "Przywrócono wersję oryginalną.";
       $("job-title").className = "ok";
@@ -128,6 +159,57 @@ async function run(cmd) {
 }
 
 $("install").onclick = () => run("install");
+$("up-install").onclick = () => { $("update-card").classList.add("hidden"); run("install"); };
+$("up-page").onclick = () => call("open_url", { url: window.UPDATE_PAGE }).catch((e) => alert(e));
+$("auto-check").onchange = () => call("set_setting", { name: "auto_check", value: $("auto-check").checked });
+$("shortcut").onclick = async () => {
+  try { const p = await call("create_shortcut", { path: $("path").value.trim() }); $("shortcut-done").textContent = "Skrót gotowy: " + p; $("shortcut-done").classList.remove("hidden"); }
+  catch (e) { alert(e); }
+};
+
+// Is there a newer translation on GitHub? Downloads only the texts; shows the banner.
+async function checkUpdate() {
+  try {
+    const u = await call("check_update");
+    if (!u.latest) return null;
+    if (u.needs_installer) {
+      window.UPDATE_PAGE = u.page;
+      $("up-title").textContent = `Jest wersja ${u.latest} – potrzebny nowy instalator`;
+      $("up-text").textContent = "Ta wersja zmienia sposób instalacji, więc nie da się jej pobrać tutaj. Pobierz nowy instalator ze strony wydania.";
+      $("up-install").classList.add("hidden"); $("up-page").classList.remove("hidden");
+      $("update-card").classList.remove("hidden");
+    }
+    return u;
+  } catch (e) { return null; }
+}
+function showOutdatedBanner(s, v) {
+  if (!(s && s.valid && (s.outdated || s.wiped))) return;
+  $("up-title").textContent = s.wiped ? "Spolszczenie zniknęło po aktualizacji gry" : `Jest nowa wersja tłumaczenia: ${s.available}`;
+  $("up-text").textContent = s.wiped ? "Gra podmieniła swoje pliki. Kliknij, żeby wgrać spolszczenie ponownie." : `Masz zainstalowaną wersję ${s.installed_version}. Aktualizacja trwa ok. pół minuty.`;
+  $("update-card").classList.remove("hidden");
+}
+
+// The desktop shortcut (--graj): check, maybe install, start the game, close.
+async function launcherFlow(path) {
+  document.body.classList.add("launcher");
+  const card = $("launch-card"); card.classList.remove("hidden");
+  const done = async (msg) => { $("lc-text").textContent = msg; try { await call("launch"); } catch (e) { $("lc-text").textContent = String(e); return; } setTimeout(() => call("quit"), 1500); };
+  if (window.SETTINGS.auto_check) { $("lc-text").textContent = "Sprawdzam, czy jest nowa wersja tłumaczenia…"; await checkUpdate(); }
+  const s = await call("status", { path });
+  const showActions = (title, text) => { $("lc-title").textContent = title; $("lc-text").textContent = text; $("lc-actions").classList.remove("hidden"); };
+  if (!s.valid) return showActions("Nie znalazłem gry", "Folder gry ze skrótu już nie istnieje. Otwórz instalator i wskaż grę.");
+  if (s.running) return done("Gra już działa.");
+  if (!s.installed || s.outdated) {
+    showActions(s.outdated ? `Nowa wersja tłumaczenia: ${s.available}` : s.wiped ? "Spolszczenie zniknęło po aktualizacji gry" : "Spolszczenie nie jest zainstalowane",
+      s.writable ? "Zainstalować teraz? Potrwa to ok. pół minuty, potem gra uruchomi się sama." : "Najpierw trzeba odblokować folder gry – otwórz instalator.");
+    $("lc-install").disabled = !s.writable;
+    return;
+  }
+  done("Spolszczenie jest aktualne. Uruchamiam grę…");
+}
+$("lc-install").onclick = () => { $("lc-actions").classList.add("hidden"); run("install", async () => { $("lc-title").textContent = "Gotowe!"; $("lc-text").textContent = "Uruchamiam grę…"; try { await call("launch"); } catch (e) {} setTimeout(() => call("quit"), 1500); }); };
+$("lc-play").onclick = async () => { try { await call("launch"); } catch (e) {} setTimeout(() => call("quit"), 800); };
+$("lc-open").onclick = () => { document.body.classList.remove("launcher"); $("launch-card").classList.add("hidden"); refresh(); };
 $("uninstall").onclick = () => run("uninstall");
 $("launch").onclick = () => call("launch").catch((e) => alert(e));
 $("grant").onclick = async () => { try { await call("grant", { path: $("path").value.trim() }); } catch (e) { alert(e); } refresh(); };
@@ -147,9 +229,22 @@ $("w-close").onclick = () => T.window.getCurrentWindow().close();
   $("backup").textContent = i.backup;
   $("games").innerHTML = i.games.length > 1 ? i.games.map((g) => `<button data-p="${esc(g.path)}">${esc(g.kind)}: ${esc(g.path)}</button>`).join("") : "";
   $("games").querySelectorAll("button").forEach((b) => b.onclick = () => { $("path").value = b.dataset.p; refresh(); });
+  window.SETTINGS = i.settings || {};
+  $("auto-row").classList.toggle("hidden", !i.can_update);
+  $("auto-check").checked = !!window.SETTINGS.auto_check;
+  if (i.launcher) { $("path").value = i.launcher; return launcherFlow(i.launcher); }
   if (i.games.length) $("path").value = i.games[0].path;
   else { $("state").textContent = "Nie znalazłem gry. Wskaż jej folder przyciskiem „Wybierz…”."; $("state").className = "state warn"; }
-  refresh();
+  await refresh();
+  if (i.can_update && window.SETTINGS.auto_check) {
+    const u = await checkUpdate();
+    if (u && u.downloaded) {
+      const i2 = await call("info");
+      $("ver").textContent = `Wersja tłumaczenia: ${i2.version} · ${i2.count} przetłumaczonych tekstów`;
+      await refresh();
+    }
+  }
+  showOutdatedBanner(window.STATUS);
   setInterval(() => { if (!busy) refresh(); }, 5000);
 })();
 </script>

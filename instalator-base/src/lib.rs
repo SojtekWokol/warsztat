@@ -8,6 +8,8 @@
 //! fn main() { instalator::builder(MyGame).run(tauri::generate_context!()).expect("tauri app"); }
 //! ```
 //! with `"frontendDist": "../instalator-base/ui"` in its tauri.conf.json.
+pub mod updates;
+
 use anyhow::Result;
 use serde_json::{json, Value};
 use std::os::windows::process::CommandExt;
@@ -20,10 +22,18 @@ const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 pub trait Installer: Send + Sync + 'static {
     /// Game title, e.g. "Escape Academy 2".
     fn game(&self) -> &str;
-    /// Translation version inside the installer, e.g. "1.0.0".
+    /// Translation version built into the installer, e.g. "1.0.0".
     fn version(&self) -> &str;
-    /// Number of translated texts (shown to the player).
-    fn count(&self) -> usize;
+    /// The translation built into the installer: JSON object {id: text}.
+    fn texts(&self) -> &'static [u8];
+    /// GitHub repository ("owner/name") whose releases carry newer translations (tlumaczenie.json).
+    fn update_repo(&self) -> Option<&str> {
+        None
+    }
+    /// The way this installer patches; a release with a higher "patch_format" needs a new installer.
+    fn patch_format(&self) -> u32 {
+        1
+    }
     /// The look: CSS setting the shared variables (see ui/index.html) and any extra rules.
     fn theme_css(&self) -> &str;
     /// Header logo (HTML).
@@ -48,8 +58,8 @@ pub trait Installer: Send + Sync + 'static {
     fn running(&self) -> bool;
     /// Is the translation installed in this game folder.
     fn installed(&self, game: &Path) -> bool;
-    /// Install; log lines starting "[n/m] " are shown as stages.
-    fn install(&self, game: &Path, backups: &Path, log: &mut dyn FnMut(String)) -> Result<()>;
+    /// Install the given texts (JSON object {id: text}); log lines starting "[n/m] " are shown as stages.
+    fn install(&self, game: &Path, backups: &Path, texts: &[u8], log: &mut dyn FnMut(String)) -> Result<()>;
     /// Put the original files back.
     fn uninstall(&self, game: &Path, backups: &Path, log: &mut dyn FnMut(String)) -> Result<()>;
     /// Start the game.
@@ -57,6 +67,10 @@ pub trait Installer: Send + Sync + 'static {
     /// Short note under the buttons (HTML), e.g. which language to pick in the game.
     fn note_html(&self) -> String {
         String::new()
+    }
+    /// Name of the desktop shortcut, e.g. "Escape Academy 2 (PL)".
+    fn shortcut_name(&self) -> String {
+        format!("{} (PL)", self.game())
     }
 }
 
@@ -130,22 +144,38 @@ struct App {
 }
 
 impl App {
+    fn dir(&self) -> PathBuf {
+        data_dir(self.inst.data_dir_name())
+    }
     fn backups(&self) -> PathBuf {
-        data_dir(self.inst.data_dir_name()).join("kopie")
+        self.dir().join("kopie")
+    }
+    fn best(&self) -> updates::Translation {
+        updates::best(&self.dir(), self.inst.version(), self.inst.texts())
     }
 }
 
 #[tauri::command]
 fn info(app: tauri::State<'_, App>) -> Value {
     let i = &app.inst;
-    json!({"game": i.game(), "version": i.version(), "count": i.count(), "theme": i.theme_css(), "logo": i.logo_html(),
-           "note": i.note_html(), "games": find_games(i.as_ref()), "backup": app.backups()})
+    let t = app.best();
+    json!({"game": i.game(), "version": t.version, "count": t.count, "theme": i.theme_css(), "logo": i.logo_html(),
+           "note": i.note_html(), "games": find_games(i.as_ref()), "backup": app.backups(),
+           "can_update": i.update_repo().is_some(), "settings": updates::settings(&app.dir()),
+           "launcher": updates::launcher_arg(), "shortcut": i.shortcut_name()})
 }
 
 #[tauri::command]
 fn status(app: tauri::State<'_, App>, path: String) -> Value {
     let Some(g) = app.inst.normalize(Path::new(&path)) else { return json!({"valid": false}) };
-    json!({"valid": true, "path": g, "installed": app.inst.installed(&g), "writable": can_write(&app.inst.write_probe_dir(&g)), "running": app.inst.running()})
+    let installed = app.inst.installed(&g);
+    let iv = updates::installed_version(&app.dir(), &g);
+    let best = app.best().version;
+    // the game replaced its files (update/repair): we installed here before, now the translation is gone
+    let wiped = !installed && iv.is_some();
+    let outdated = installed && iv.as_deref().map_or(false, |v| updates::cmp_versions(&best, v) == std::cmp::Ordering::Greater);
+    json!({"valid": true, "path": g, "installed": installed, "writable": can_write(&app.inst.write_probe_dir(&g)), "running": app.inst.running(),
+           "installed_version": iv, "available": best, "outdated": outdated, "wiped": wiped})
 }
 
 fn start(app: &App, path: String, install: bool) -> Result<(), String> {
@@ -157,7 +187,8 @@ fn start(app: &App, path: String, install: bool) -> Result<(), String> {
         }
         *j = Job { running: true, ..Default::default() };
     }
-    let (inst, job, backups) = (app.inst.clone(), app.job.clone(), app.backups());
+    let (inst, job, backups, dir) = (app.inst.clone(), app.job.clone(), app.backups(), app.dir());
+    let t = app.best();
     std::thread::spawn(move || {
         let mut push = |m: String| {
             let mut j = job.lock().unwrap();
@@ -169,9 +200,9 @@ fn start(app: &App, path: String, install: bool) -> Result<(), String> {
         let res = if inst.running() {
             Err(anyhow::anyhow!("Gra jest uruchomiona - zamknij ją i spróbuj ponownie."))
         } else if install {
-            inst.install(&g, &backups, &mut push)
+            inst.install(&g, &backups, &t.texts, &mut push).and_then(|_| updates::set_installed_version(&dir, &g, Some(&t.version)))
         } else {
-            inst.uninstall(&g, &backups, &mut push)
+            inst.uninstall(&g, &backups, &mut push).and_then(|_| updates::set_installed_version(&dir, &g, None))
         };
         let mut j = job.lock().unwrap();
         if let Err(e) = &res {
@@ -219,6 +250,40 @@ fn launch(app: tauri::State<'_, App>) -> Result<(), String> {
     app.inst.launch().map_err(|e| e.to_string())
 }
 
+/// Look for a newer translation on GitHub and download it (texts only).
+#[tauri::command]
+async fn check_update(app: tauri::State<'_, App>) -> Result<Value, String> {
+    let Some(repo) = app.inst.update_repo().map(String::from) else { return Ok(json!({"latest": null})) };
+    let (dir, have, pf) = (app.dir(), app.best().version, app.inst.patch_format());
+    let r = tauri::async_runtime::spawn_blocking(move || updates::check(&dir, &repo, &have, pf)).await.map_err(|e| e.to_string())?.map_err(|e| e.to_string())?;
+    Ok(json!({"latest": r.version, "downloaded": r.downloaded, "needs_installer": r.needs_installer, "page": r.page, "version": app.best().version}))
+}
+
+#[tauri::command]
+fn set_setting(app: tauri::State<'_, App>, name: String, value: Value) -> Result<(), String> {
+    updates::set_setting(&app.dir(), &name, value).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn create_shortcut(app: tauri::State<'_, App>, path: String) -> Result<String, String> {
+    let g = app.inst.normalize(Path::new(&path)).ok_or("To nie jest folder gry.")?;
+    let exe = format!("{}.exe", app.inst.data_dir_name());
+    updates::create_shortcut(&app.dir(), &app.inst.shortcut_name(), &exe, &g).map(|p| p.to_string_lossy().into_owned()).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn open_url(url: String) -> Result<(), String> {
+    if !url.starts_with("https://github.com/") {
+        return Err("Nieobsługiwany adres.".into());
+    }
+    std::process::Command::new("explorer").arg(&url).spawn().map(|_| ()).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn quit(window: tauri::Window) {
+    let _ = window.close();
+}
+
 /// Start an Xbox app (Game Pass) game whose install folder contains `folder_part`.
 pub fn launch_xbox(folder_part: &str) -> Result<()> {
     let ps = format!(
@@ -248,5 +313,5 @@ pub fn builder<I: Installer>(inst: I) -> tauri::Builder<tauri::Wry> {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(App { inst: Arc::new(inst), job: Arc::new(Mutex::new(Job::default())) })
-        .invoke_handler(tauri::generate_handler![info, status, install, uninstall, progress, grant, launch])
+        .invoke_handler(tauri::generate_handler![info, status, install, uninstall, progress, grant, launch, check_update, set_setting, create_shortcut, open_url, quit])
 }

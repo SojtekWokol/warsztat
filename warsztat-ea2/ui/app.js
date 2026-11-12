@@ -83,7 +83,10 @@ async function poll() {
   $("edits").textContent = s.edits ? `Twoich zmian: ${s.edits} ▸ wgraj` : "Wszystko wgrane";
   $("edits").classList.toggle("has", s.edits > 0);
   $("bar-done").style.width = `${(100 * s.done) / s.total}%`;
-  $("progress-text").textContent = `${s.done} z ${s.total}` + (s.statuses ? ` · zatwierdzone ${s.statuses.done || 0} · do sprawdzenia ${s.statuses.review || 0}` : "");
+  // the status counts open the matching lines in the editor
+  const st = s.statuses || {};
+  const pt = `${s.done} z ${s.total} · <a href="#" data-st="done">zatwierdzone ${st.done || 0}</a> · <a href="#" data-st="review">do sprawdzenia ${st.review || 0}</a> · <a href="#" data-st="draft">szkice ${st.draft || 0}</a>`;
+  if ($("progress-text").innerHTML !== pt) $("progress-text").innerHTML = pt;
   if (s.log.length !== seen) { $("log").textContent = s.log.join("\n") + "\n"; $("log").scrollTop = 1e9; seen = s.log.length; }
   $("build").disabled = $("test").disabled = s.build.running;
   if (s.build.running || wasBuilding) buildOverlay(s, wasBuilding && !s.build.running);
@@ -283,6 +286,7 @@ function insertTag(t) {
   typed++; setGhost(""); check();
 }
 $("tag-audit").onclick = () => loadPage("!znaczniki");
+$("progress-text").onclick = (e) => { const a = e.target.closest("a[data-st]"); if (!a) return; e.preventDefault(); editPage("!status:" + a.dataset.st); };
 $("bielik-info").onclick = () => $("bielik-help").classList.remove("hidden");
 $("bh-close").onclick = () => $("bielik-help").classList.add("hidden");
 $("bielik-help").onclick = (e) => { if (e.target.id === "bielik-help") $("bielik-help").classList.add("hidden"); };

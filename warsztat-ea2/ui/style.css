@@ -398,3 +398,5 @@ button.mini { height: 22px; width: 22px; padding: 0; margin-left: 6px; font: 800
 #bielik-state .ok-text { color: var(--done); font-weight: 800; }
 #bielik-state .missing { color: var(--warn); font-weight: 800; }
 #bielik-state a { color: var(--clue); }
+#progress-text a { color: inherit; text-decoration: underline dotted; }
+#progress-text a:hover { color: var(--clue); }

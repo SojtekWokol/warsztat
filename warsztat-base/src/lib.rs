@@ -158,6 +158,10 @@ impl Workshop {
         if let Some(v) = self.game.page_entries(cx, key) {
             return v;
         }
+        // every text with a status: "!status:review" (to check), "!status:done", "!status:draft"
+        if let Some(st) = key.strip_prefix("!status:") {
+            return cx.entries.iter().filter(|e| cx.store.map.get(&e.id).map_or(false, |r| r.status == st)).collect();
+        }
         if key == "!znaczniki" {
             return cx
                 .entries
@@ -214,7 +218,10 @@ impl Workshop {
                 };
             }
             let rows: Vec<Value> = es.iter().map(|e| self.row(cx, e)).collect();
-            let title = if key == "!znaczniki" {
+            let title = if let Some(st) = key.strip_prefix("!status:") {
+                let name = match st { "review" => "Do sprawdzenia", "done" => "Zatwierdzone", "draft" => "Szkice", other => other };
+                format!("{name}: {}", es.len())
+            } else if key == "!znaczniki" {
                 format!("Błędy znaczników: {}", es.len())
             } else if let Some(t) = self.game.page_title(cx, key) {
                 t

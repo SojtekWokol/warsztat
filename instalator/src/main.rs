@@ -26,8 +26,11 @@ impl instalator::Installer for Ea2 {
     fn version(&self) -> &str {
         VERSION
     }
-    fn count(&self) -> usize {
-        serde_json::from_slice::<serde_json::Value>(TEXTS).ok().and_then(|v| v.as_object().map(|o| o.len())).unwrap_or(0)
+    fn texts(&self) -> &'static [u8] {
+        TEXTS
+    }
+    fn update_repo(&self) -> Option<&str> {
+        Some("SojtekWokol/ea2-tlumaczenie")
     }
     fn theme_css(&self) -> &str {
         include_str!("theme.css")
@@ -58,10 +61,10 @@ impl instalator::Installer for Ea2 {
     fn installed(&self, game: &Path) -> bool {
         ea2::originals::is_ours(&Game { content: game.to_path_buf() }.catalog())
     }
-    fn install(&self, game: &Path, backups: &Path, log: &mut dyn FnMut(String)) -> Result<()> {
+    fn install(&self, game: &Path, backups: &Path, texts: &[u8], log: &mut dyn FnMut(String)) -> Result<()> {
         let g = Game { content: game.to_path_buf() };
         let mut originals = ea2::originals::open(backups)?;
-        let store = ea2::store::Store::from_slice(TEXTS)?;
+        let store = ea2::store::Store::from_slice(texts)?;
         let fonts = fonts();
         patch::run(patch::Options { game: &g, store: &store, fonts_dir: Path::new(""), fonts: Some(&fonts), originals: &mut originals, out_dir: None }, log)
     }
