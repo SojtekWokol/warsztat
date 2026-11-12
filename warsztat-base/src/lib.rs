@@ -78,6 +78,11 @@ pub trait Game: Send + Sync {
     fn keep_english(&self) -> Vec<String> {
         vec![]
     }
+    /// File (relative to translations/pl/) that a text belongs in; `e` is None for ids that are not
+    /// game texts (e.g. speaker names "s:…"). Group by where texts are in the game.
+    fn store_file(&self, _id: &str, _e: Option<&Entry>) -> String {
+        "teksty.json".into()
+    }
     /// Extra checks of a line.
     fn extra_checks(&self, _en: &str, _pl: &str) -> Vec<String> {
         vec![]
@@ -108,8 +113,10 @@ pub struct Workshop {
 impl Workshop {
     pub fn open(root: &Path, game: Arc<dyn Game>) -> Result<Arc<Workshop>> {
         let (entries, areas) = game.load(root)?;
-        let by_id = entries.iter().enumerate().map(|(i, e)| (e.id.clone(), i)).collect();
-        let store = Store::load(&root.join("translations").join("pl.json"))?;
+        let by_id: HashMap<String, usize> = entries.iter().enumerate().map(|(i, e)| (e.id.clone(), i)).collect();
+        let (g2, lookup) = (game.clone(), Arc::new(entries.iter().map(|e| (e.id.clone(), e.clone())).collect::<HashMap<_, _>>()));
+        let placer: store::Placer = Box::new(move |id| g2.store_file(id, lookup.get(id)));
+        let store = Store::load(&root.join("translations"), placer)?;
         let ws = Arc::new(Workshop {
             root: root.to_path_buf(),
             game,
@@ -276,7 +283,7 @@ impl Workshop {
                         let id = s(&it, "id");
                         if self.by_id.contains_key(id) || id.starts_with("s:") {
                             let status = if s(&it, "status").is_empty() { "draft" } else { s(&it, "status") };
-                            st.map.insert(id.to_string(), store::Rec { pl: s(&it, "pl").to_string(), status: status.into(), t: store::now() });
+                            st.set(id, s(&it, "pl"), status)?;
                             n += 1;
                         }
                     }

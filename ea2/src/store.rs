@@ -8,8 +8,18 @@ pub struct Store {
 }
 
 impl Store {
+    /// A translations/pl folder (all files), a translations folder (its pl/, or an old pl.json),
+    /// or one JSON file.
     pub fn load(path: &std::path::Path) -> Result<Store> {
-        Store::from_slice(&std::fs::read(path)?)
+        let p = if path.join("pl").is_dir() {
+            path.join("pl")
+        } else if path.is_dir() && path.join("pl.json").exists() {
+            path.join("pl.json")
+        } else {
+            path.to_path_buf()
+        };
+        let texts = warsztat::store::read_texts(&p)?;
+        Ok(Store { map: texts.into_iter().filter(|(_, v)| !v.trim().is_empty()).collect() })
     }
 
     /// {id: {"pl": text}} (workshop store) or {id: text} (a release / the installer).

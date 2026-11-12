@@ -95,12 +95,14 @@ pub struct Ea2 {
     scenes: OnceLock<Vec<Value>>,
     line_stage: OnceLock<HashMap<String, Value>>,
     names_en: OnceLock<HashMap<String, String>>,
+    /// campus talks per first part of the Yarn node name ("Gil", "HUM", …): the store file grouping
+    talk_prefixes: OnceLock<HashMap<String, usize>>,
     pub content: PathBuf,
 }
 
 impl Default for Ea2 {
     fn default() -> Self {
-        Ea2 { scenes: OnceLock::new(), line_stage: OnceLock::new(), names_en: OnceLock::new(), content: PathBuf::from(DEFAULT_CONTENT) }
+        Ea2 { scenes: OnceLock::new(), line_stage: OnceLock::new(), names_en: OnceLock::new(), talk_prefixes: OnceLock::new(), content: PathBuf::from(DEFAULT_CONTENT) }
     }
 }
 
@@ -304,6 +306,12 @@ impl Game for Ea2 {
         let _ = self.scenes.set(scenes);
         let _ = self.line_stage.set(stage);
         let _ = self.names_en.set(names);
+        let mut tp: HashMap<String, usize> = HashMap::new();
+        for e in entries.iter().filter(|e| e.src == "n") {
+            // lower case: "VON_…" and "Von_…" must not become two files that Windows sees as one
+            *tp.entry(e.node.as_deref().unwrap_or("").split('_').next().unwrap_or("").to_lowercase()).or_insert(0) += 1;
+        }
+        let _ = self.talk_prefixes.set(tp);
         Ok((entries, areas))
     }
 
@@ -450,6 +458,34 @@ impl Game for Ea2 {
         out
     }
 
+    /// translations/pl layout, like the workshop tabs: one file per escape room, campus talks per place,
+    /// the rest by kind.
+    fn store_file(&self, id: &str, e: Option<&Entry>) -> String {
+        let Some(e) = e else {
+            return if id.starts_with("s:") { "nazwy.json".into() } else { "inne.json".into() };
+        };
+        match e.src.as_str() {
+            "y" => "scenki.json".into(),
+            "b" => "okrzyki.json".into(),
+            "c" => "napisy-koncowe.json".into(),
+            "n" => {
+                // talks are named after a place ("HUM_…") or a character ("Gil_…"): one file per name with
+                // enough lines, the small ones together
+                let prefix = e.node.as_deref().unwrap_or("").split('_').next().unwrap_or("").to_lowercase();
+                let n = self.talk_prefixes.get().and_then(|m| m.get(&prefix)).copied().unwrap_or(0);
+                if n >= 40 && prefix.chars().all(|c| c.is_ascii_alphanumeric()) {
+                    format!("rozmowy/{prefix}.json")
+                } else {
+                    "rozmowy/inne.json".into()
+                }
+            }
+            _ if ROOM_CODES.contains(&e.area.as_str()) => format!("pokoje/{}.json", e.area),
+            _ if e.kind == "name" => "nazwy.json".into(),
+            _ if CAMPUS_CODES.contains(&e.area.as_str()) => format!("kampus/{}.json", e.area),
+            _ => "interfejs.json".into(),
+        }
+    }
+
     fn style(&self) -> String {
         STYLE.to_string()
     }
@@ -460,7 +496,7 @@ impl Game for Ea2 {
 
     fn build(&self, root: &Path, log: &mut dyn FnMut(String)) -> Result<()> {
         let game = crate::patch::Game { content: self.content.clone() };
-        let store = crate::store::Store::load(&root.join("translations").join("pl.json"))?;
+        let store = crate::store::Store::load(&root.join("translations"))?;
         let mut originals = crate::originals::open(&root.join("backup"))?;
         crate::patch::run(
             crate::patch::Options { game: &game, store: &store, fonts_dir: &root.join("fonts"), fonts: None, originals: &mut originals, out_dir: None },

@@ -12,10 +12,10 @@ use warsztat::Workshop;
 
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
-/// The project folder: searched upwards from the exe (and the working folder) for translations/pl.json.
+/// The project folder: searched upwards from the exe (and the working folder) for translations/pl (or an old translations/pl.json).
 fn project_root() -> Option<PathBuf> {
     let starts = [std::env::current_exe().ok(), std::env::current_dir().ok()];
-    starts.into_iter().flatten().find_map(|p| p.ancestors().find(|d| d.join("translations").join("pl.json").is_file()).map(Path::to_path_buf))
+    starts.into_iter().flatten().find_map(|p| p.ancestors().find(|d| d.join("translations").join("pl").is_dir() || d.join("translations").join("pl.json").is_file()).map(Path::to_path_buf))
 }
 
 fn start_ollama() {
@@ -53,7 +53,7 @@ fn main() {
     let root = project_root();
     let state = match &root {
         Some(r) => Workshop::open(r, Arc::new(ea2::workshop::Ea2::default())).map_err(|e| format!("Nie udało się wczytać danych: {e}")),
-        None => Err("Nie znaleziono folderu projektu (translations/pl.json). Program musi leżeć w folderze tłumaczenia.".into()),
+        None => Err("Nie znaleziono folderu projektu (translations/pl). Program musi leżeć w folderze tłumaczenia.".into()),
     };
     let asset_root = root.clone();
     tauri::Builder::default()

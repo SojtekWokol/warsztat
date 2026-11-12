@@ -13,7 +13,7 @@ fn arg(args: &[String], name: &str) -> Option<String> {
 fn project_root() -> PathBuf {
     let mut d = std::env::current_dir().unwrap();
     loop {
-        if d.join("translations").join("pl.json").exists() {
+        if d.join("translations").join("pl").is_dir() || d.join("translations").join("pl.json").exists() {
             return d;
         }
         if !d.pop() {
@@ -30,7 +30,7 @@ fn main() -> Result<()> {
     let mut log = |m: String| println!("{m}");
     match args.get(1).map(|s| s.as_str()) {
         Some("patch") => {
-            let store_p = PathBuf::from(arg(&args, "--store").unwrap_or_else(|| root.join("translations/pl.json").to_string_lossy().into()));
+            let store_p = PathBuf::from(arg(&args, "--store").unwrap_or_else(|| root.join("translations").to_string_lossy().into()));
             let fonts = PathBuf::from(arg(&args, "--fonts").unwrap_or_else(|| root.join("fonts").to_string_lossy().into()));
             let out = arg(&args, "--out").map(PathBuf::from);
             if let Some(o) = &out {
