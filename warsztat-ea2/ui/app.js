@@ -229,10 +229,20 @@ const preview = debounce(() => {
 const check = debounce(async () => {
   if (current < 0) return;
   preview();
-  const r = await post("/api/check", { en: page.rows[current].en, pl: $("pl").value });
-  const n = $("pl").value.length, m = page.rows[current].en.length;
+  const x = page.rows[current];
+  const r = await post("/api/check", { en: x.en, pl: $("pl").value, id: x.id });
+  const n = $("pl").value.length, m = x.en.length;
   $("check").textContent = `długość ${n} / oryginał ${m}` + (r.problems.length ? "  |  " + r.problems.join("; ") : "  |  OK");
   $("check").className = "check " + (r.problems.length ? "bad" : "ok");
+  // tag differences can be accepted as deliberate (e.g. added emphasis for a pun); saved texts only
+  if (r.tag_problems && x.pl != null) {
+    const b = document.createElement("button");
+    b.className = "tags-ok";
+    b.textContent = r.tags_ok ? "znaczniki celowo inne ✓ (cofnij)" : "Celowo inne";
+    b.title = r.tags_ok ? "Kontrola znaczników znowu obejmie tę kwestię" : "Oznacz różnicę w znacznikach jako świadomą: kontrola przestanie ją zgłaszać, dopóki znaczniki się nie zmienią";
+    b.onclick = async () => { await post("/api/tags_ok", { id: x.id, pl: $("pl").value, ok: !r.tags_ok }); check(); };
+    $("check").append(" ", b);
+  }
 }, 150);
 
 // ---------- tag ribbon: the original's <tags> and {codes}, click to insert (wraps a selection) ----------

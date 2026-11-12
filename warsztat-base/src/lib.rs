@@ -159,7 +159,11 @@ impl Workshop {
             return v;
         }
         if key == "!znaczniki" {
-            return cx.entries.iter().filter(|e| !checks::tag_problems(&e.en, cx.store.pl(&e.id)).is_empty()).collect();
+            return cx
+                .entries
+                .iter()
+                .filter(|e| !checks::tag_problems(&e.en, cx.store.pl(&e.id)).is_empty() && !cx.store.tags_accepted(&e.id, cx.store.pl(&e.id)))
+                .collect();
         }
         if let Some(e) = cx.entry(key) {
             return vec![e];
@@ -270,7 +274,28 @@ impl Workshop {
             "memory" => self.with_ctx(|cx| lang::memory(cx, s(d, "q"))),
             "word" => self.with_ctx(|cx| json!({"rest": lang::word(cx.store, s(d, "part"))})),
             "names" => Value::Array(self.with_ctx(|cx| self.game.names(cx))),
-            "check" => json!({"problems": self.check(s(d, "en"), s(d, "pl"))}),
+            "check" => {
+                // with an id: tag differences accepted for this text (and still the same tags) are not problems
+                let mut p = self.check(s(d, "en"), s(d, "pl"));
+                let has_tag = p.iter().any(|x| x.starts_with("znaczniki:"));
+                let accepted = has_tag && !s(d, "id").is_empty() && self.store.lock().unwrap().tags_accepted(s(d, "id"), s(d, "pl"));
+                if accepted {
+                    p.retain(|x| !x.starts_with("znaczniki:"));
+                }
+                json!({"problems": p, "tag_problems": has_tag, "tags_ok": accepted})
+            }
+            "tags_ok" => {
+                let (id, ok) = (s(d, "id"), d.get("ok").and_then(|x| x.as_bool()).unwrap_or(true));
+                let mut st = self.store.lock().unwrap();
+                // the tags of the text being edited (d.pl) or else of the saved text
+                let text = if s(d, "pl").is_empty() { st.pl(id).to_string() } else { s(d, "pl").to_string() };
+                let sig = ok.then(|| checks::tag_signature(&text));
+                st.set_tags_ok(id, sig)?;
+                drop(st);
+                let key = self.by_id.get(id).map_or(id.to_string(), |&i| self.entries[i].key.clone());
+                self.say(if ok { format!("{key}: znaczniki oznaczone jako celowo inne.") } else { format!("{key}: znaczniki znowu sprawdzane.") });
+                json!({"ok": true})
+            }
             "glossary" => json!({"terms": self.with_ctx(|cx| lang::glossary(self, cx, s(d, "en")))}),
             "suggest" => ollama::suggest(self, d)?,
             "continue" => ollama::cont(self, d)?,

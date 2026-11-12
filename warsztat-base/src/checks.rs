@@ -42,6 +42,11 @@ pub fn tag_list(s: &str) -> Vec<String> {
     tag_regex().find_iter(s).map(|m| norm_tag(m.as_str())).collect()
 }
 
+/// The tags of a text as one string (normalized, in order): what an accepted deviation is tied to.
+pub fn tag_signature(s: &str) -> String {
+    tag_list(s).join(" ")
+}
+
 fn counts(v: &[String]) -> BTreeMap<String, i64> {
     let mut m = BTreeMap::new();
     for t in v {

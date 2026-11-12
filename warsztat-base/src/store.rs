@@ -13,6 +13,10 @@ pub const STATUSES: &[&str] = &["todo", "draft", "review", "done"];
 pub struct Rec {
     pub pl: String,
     pub status: String,
+    /// tags of `pl` accepted as deliberately different from the original (normalized tag list);
+    /// the tag check is quiet while the text still has exactly these tags
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tags_ok: Option<String>,
     /// last change (unix time); kept in memory only, not written to the files (it would make every
     /// save a diff line)
     #[serde(default, skip_serializing)]
@@ -149,9 +153,24 @@ impl Store {
         if pl.trim().is_empty() && status == "todo" {
             self.map.remove(id);
         } else {
-            self.map.insert(id.to_string(), Rec { pl: pl.to_string(), status: status.to_string(), t: now() });
+            let tags_ok = self.map.get(id).and_then(|r| r.tags_ok.clone());
+            self.map.insert(id.to_string(), Rec { pl: pl.to_string(), status: status.to_string(), tags_ok, t: now() });
         }
         Ok(())
+    }
+
+    /// Accept (Some(tag signature)) or un-accept (None) deliberate tag differences of a text.
+    pub fn set_tags_ok(&mut self, id: &str, sig: Option<String>) -> Result<()> {
+        let f = self.place(id);
+        let r = self.map.get_mut(id).ok_or_else(|| anyhow::anyhow!("brak tłumaczenia {id}"))?;
+        r.tags_ok = sig;
+        self.dirty.insert(f);
+        self.save()
+    }
+
+    /// Are the tags of this text accepted as they are now?
+    pub fn tags_accepted(&self, id: &str, pl: &str) -> bool {
+        self.map.get(id).and_then(|r| r.tags_ok.as_deref()).map_or(false, |sig| sig == crate::checks::tag_signature(pl))
     }
 
     pub fn update(&mut self, id: &str, pl: &str, status: &str) -> Result<()> {

@@ -214,6 +214,7 @@ aside { display: flex; flex-direction: column; gap: 16px; overflow: auto; min-he
 .check { font-weight: 800; font-size: 13px; }
 .check.ok { color: var(--done); }
 .check.bad { color: var(--bad); }
+.check .tags-ok { height: 24px; padding: 0 8px; margin-left: 6px; font-size: 12px; box-shadow: none; border-width: 2px; vertical-align: 1px; }
 .actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
 .actions label:first-child { margin-right: auto; }
 .hint-line { font-size: 12px; color: var(--t3); }
