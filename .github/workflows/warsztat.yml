@@ -16,8 +16,11 @@ jobs:
     runs-on: ${{ vars.RUNNER || 'windows-latest' }}
     steps:
       - uses: actions/checkout@v4
+      # the own runner (vars.RUNNER) already has Rust; these two are for GitHub's machines
       - uses: dtolnay/rust-toolchain@stable
+        if: ${{ !vars.RUNNER }}
       - uses: Swatinem/rust-cache@v2
+        if: ${{ !vars.RUNNER }}
       - name: Budowa warsztatu
         run: cargo build --release -p warsztat-ea2
       - name: Plik
