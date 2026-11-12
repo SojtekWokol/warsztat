@@ -50,7 +50,11 @@ impl instalator::Installer for Ea2 {
     /// Content, its parent, or ProjectFLEA_Data -> the folder holding ProjectFLEA_Data.
     fn normalize(&self, p: &Path) -> Option<PathBuf> {
         let cands = [p.to_path_buf(), p.join("Content"), p.parent().map(Path::to_path_buf).unwrap_or_default()];
-        cands.into_iter().find(|c| c.join("ProjectFLEA_Data").join("data.unity3d").is_file())
+        // Xbox builds pack the data into data.unity3d, Steam builds keep loose files (globalgamemanagers, …)
+        cands.into_iter().find(|c| {
+            let d = c.join("ProjectFLEA_Data");
+            d.join("data.unity3d").is_file() || d.join("globalgamemanagers").is_file()
+        })
     }
     fn write_probe_dir(&self, game: &Path) -> PathBuf {
         game.join("ProjectFLEA_Data")
@@ -66,7 +70,15 @@ impl instalator::Installer for Ea2 {
         let mut originals = ea2::originals::open(backups)?;
         let store = ea2::store::Store::from_slice(texts)?;
         let fonts = fonts();
-        patch::run(patch::Options { game: &g, store: &store, fonts_dir: Path::new(""), fonts: Some(&fonts), originals: &mut originals, out_dir: None }, log)
+        patch::run(patch::Options { game: &g, store: &store, fonts_dir: Path::new(""), fonts: Some(&fonts), originals: &mut originals, out_dir: None, dry_run: false }, log)
+    }
+    fn check(&self, game: &Path, backups: &Path, texts: &[u8], log: &mut dyn FnMut(String)) -> Result<()> {
+        let g = Game { content: game.to_path_buf() };
+        let mut originals = ea2::originals::open(backups)?;
+        let store = ea2::store::Store::from_slice(texts)?;
+        let fonts = fonts();
+        log(format!("Folder: {}", game.display()));
+        patch::run(patch::Options { game: &g, store: &store, fonts_dir: Path::new(""), fonts: Some(&fonts), originals: &mut originals, out_dir: None, dry_run: true }, log)
     }
     fn uninstall(&self, game: &Path, backups: &Path, log: &mut dyn FnMut(String)) -> Result<()> {
         let g = Game { content: game.to_path_buf() };
@@ -76,8 +88,8 @@ impl instalator::Installer for Ea2 {
         log(format!("Przywrócono {done} plików (pominięto {skipped})."));
         Ok(())
     }
-    fn launch(&self) -> Result<()> {
-        instalator::launch_xbox("Escape Academy 2")
+    fn launch(&self, game: &Path) -> Result<()> {
+        instalator::launch_auto(game, "Escape Academy 2")
     }
     fn finish_html(&self) -> String {
         "Uruchom grę i wybierz w ustawieniach język <b>POLSKI</b> (jeśli nie jest jeszcze wybrany).".into()

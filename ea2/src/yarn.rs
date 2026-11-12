@@ -78,6 +78,7 @@ pub fn patch_pack(pack: &mut Pack, reg: &TypeRegistry, store: &Store, speakers: 
         let big = pack.sf(it_at.file).big_endian;
         let data = unity::typetree::write(&tree, &pl, big)?;
         pack.files[it_at.file].1.add_object(new_id, type_index, data);
+        pack.touch(it_at.file);
         if it_at.file != p.file {
             bail!("{name}: localization in another file than the project");
         }

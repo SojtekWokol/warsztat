@@ -499,7 +499,7 @@ impl Game for Ea2 {
         let store = crate::store::Store::load(&root.join("translations"))?;
         let mut originals = crate::originals::open(&root.join("backup"))?;
         crate::patch::run(
-            crate::patch::Options { game: &game, store: &store, fonts_dir: &root.join("fonts"), fonts: None, originals: &mut originals, out_dir: None },
+            crate::patch::Options { game: &game, store: &store, fonts_dir: &root.join("fonts"), fonts: None, originals: &mut originals, out_dir: None, dry_run: false },
             log,
         )
     }

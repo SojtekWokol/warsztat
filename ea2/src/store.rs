@@ -1,5 +1,6 @@
 //! The Polish translations: translations/pl.json from the workshop, {id: {"pl": text, ...}}.
-//! Only entries with visible text count (like the Python patcher: text.strip() not empty).
+//! Every non-empty text counts, also a single space: lines the developers want blank outside English
+//! ("INTENTIONALLY LEFT BLANK") are translated as " ", and that must reach the game.
 use anyhow::Result;
 use std::collections::HashMap;
 
@@ -19,7 +20,7 @@ impl Store {
             path.to_path_buf()
         };
         let texts = warsztat::store::read_texts(&p)?;
-        Ok(Store { map: texts.into_iter().filter(|(_, v)| !v.trim().is_empty()).collect() })
+        Ok(Store { map: texts.into_iter().filter(|(_, v)| !v.is_empty()).collect() })
     }
 
     /// {id: {"pl": text}} (workshop store) or {id: text} (a release / the installer).
@@ -30,7 +31,7 @@ impl Store {
             for (k, e) in o {
                 let pl = e.get("pl").and_then(|p| p.as_str()).or_else(|| e.as_str());
                 if let Some(pl) = pl {
-                    if !pl.trim().is_empty() {
+                    if !pl.is_empty() {
                         map.insert(k.clone(), pl.to_string());
                     }
                 }

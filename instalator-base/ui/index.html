@@ -89,6 +89,7 @@
     <div class="row"><input type="text" id="path" spellcheck="false"><button id="pick">Wybierz…</button></div>
     <div class="games" id="games"></div>
     <p class="state" id="state">Szukam gry…</p>
+    <p><button id="compat" class="hidden">Sprawdź zgodność bez instalowania</button></p>
     <div id="perm" class="box hidden">
       <p>Aplikacja Xbox blokuje zmiany w folderze gry. Kliknij, a Windows zapyta o zgodę administratora i pozwoli Twojemu kontu zmieniać pliki tej gry.</p>
       <button id="grant">Pozwól na zmiany w folderze gry</button>
@@ -127,6 +128,7 @@
     <p class="lead" id="f-text"></p>
     <label class="opt" id="f-launch-row"><input type="checkbox" id="f-launch" checked><span>Uruchom grę teraz</span></label>
     <details id="f-details" class="hidden"><summary>Szczegóły</summary><pre id="f-log"></pre></details>
+    <p><button id="f-back" class="hidden">Wróć do instalatora</button> <button id="f-copy" class="hidden">Kopiuj szczegóły</button></p>
   </section>
 
   <!-- shortcut mode (--graj) -->
@@ -185,6 +187,7 @@ async function status() {
     : s.wiped ? "Gra się zaktualizowała i spolszczenie zniknęło."
     : s.installed ? `Gra znaleziona, spolszczenie zainstalowane${s.installed_version ? " (" + s.installed_version + ")" : ""}.` : "Gra znaleziona.";
   $("state").className = "state " + (s.running || !s.writable ? "warn" : "ok");
+  $("compat").classList.remove("hidden");
   nav();
   return s;
 }
@@ -216,7 +219,7 @@ function options() {
 
 async function run(cmd) {
   busy = true; show("p-progress");
-  $("g-title").textContent = cmd === "install" ? "Instaluję polską wersję…" : "Przywracam wersję oryginalną…";
+  $("g-title").textContent = cmd === "install" ? "Instaluję polską wersję…" : cmd === "check" ? "Sprawdzam zgodność…" : "Przywracam wersję oryginalną…";
   $("g-log").textContent = ""; $("g-bar").style.width = "3%"; $("g-stage").textContent = "Start…";
   const path = $("path").value.trim();
   try { await call(cmd, { path }); } catch (e) { return finish(false, String(e), cmd); }
@@ -241,6 +244,14 @@ async function finish(ok, err, cmd, secs, log) {
   $("f-details").classList.toggle("hidden", !log);
   $("f-log").textContent = log || "";
   $("f-launch-row").classList.toggle("hidden", !ok || cmd !== "install");
+  if (cmd === "check") {
+    $("f-title").textContent = ok ? "Ta wersja gry jest zgodna" : "Ta wersja gry się różni";
+    $("f-title").className = ok ? "ok" : "bad";
+    $("f-text").textContent = ok ? "Spolszczenie da się zainstalować. Niczego nie zmieniłem w grze." : (err || "Szczegóły poniżej.") + " Skopiuj szczegóły do zgłoszenia na GitHubie – to bardzo pomoże.";
+    $("f-details").classList.remove("hidden"); $("f-details").open = true;
+    $("f-back").classList.remove("hidden");
+    return;
+  }
   if (!ok) { $("f-title").textContent = "Nie udało się"; $("f-title").className = "bad"; $("f-text").textContent = err || "Szczegóły poniżej."; return; }
   $("f-title").className = "";
   $("f-title").textContent = cmd === "install" ? "Gotowe!" : "Spolszczenie usunięte";
@@ -267,11 +278,14 @@ $("next").onclick = async () => {
     return;
   }
   if (page === "p-finish") {
-    if (!$("f-launch-row").classList.contains("hidden") && $("f-launch").checked) await call("launch").catch(() => {});
+    if (!$("f-launch-row").classList.contains("hidden") && $("f-launch").checked) await call("launch", { path: $("path").value.trim() }).catch(() => {});
     call("quit");
   }
 };
 $("back").onclick = () => show(ORDER[Math.max(0, ORDER.indexOf(page) - 1)]);
+$("compat").onclick = async () => { const r = await run("check"); if (r) { await finish(r.ok, r.err, "check", r.secs, r.log); $("f-copy").classList.remove("hidden"); } };
+$("f-back").onclick = () => { $("f-back").classList.add("hidden"); $("f-copy").classList.add("hidden"); show("p-folder"); status(); };
+$("f-copy").onclick = () => navigator.clipboard.writeText($("f-log").textContent).then(() => { $("f-copy").textContent = "Skopiowano"; });
 $("cancel").onclick = () => { if (!busy) call("quit"); };
 $("grant").onclick = async () => { try { await call("grant", { path: $("path").value.trim() }); } catch (e) { alert(e); } status(); };
 $("pick").onclick = async () => { const d = await T.dialog.open({ directory: true, title: "Wskaż folder gry" }); if (d) { $("path").value = d; status(); } };
@@ -297,7 +311,7 @@ async function checkUpdate() {
 // shortcut mode (--graj): check, maybe update, start the game, close
 async function launcher(path) {
   show("p-launch");
-  const go = async (msg) => { $("lc-text").textContent = msg; try { await call("launch"); } catch (e) { $("lc-text").textContent = String(e); return; } setTimeout(() => call("quit"), 1500); };
+  const go = async (msg) => { $("lc-text").textContent = msg; try { await call("launch", { path }); } catch (e) { $("lc-text").textContent = String(e); return; } setTimeout(() => call("quit"), 1500); };
   if (INFO.settings.auto_check) { $("lc-text").textContent = "Sprawdzam, czy jest nowa wersja tłumaczenia…"; await checkUpdate(); INFO = await call("info"); }
   $("path").value = path;
   const s = await status();

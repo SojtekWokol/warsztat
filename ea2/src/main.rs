@@ -26,7 +26,9 @@ fn main() -> Result<()> {
     let args: Vec<String> = std::env::args().collect();
     let root = project_root();
     let game = patch::Game { content: PathBuf::from(arg(&args, "--content").unwrap_or(DEFAULT_CONTENT.into())) };
-    let backup = PathBuf::from(arg(&args, "--backup").unwrap_or_else(|| root.join("backup").to_string_lossy().into()));
+    // the default game uses backup/, any other game folder its own backup/<id> (never mixed)
+    let default_backup = if game.content == PathBuf::from(DEFAULT_CONTENT) { root.join("backup") } else { root.join("backup").join(kopie::folder_id(&game.content)) };
+    let backup = PathBuf::from(arg(&args, "--backup").unwrap_or_else(|| default_backup.to_string_lossy().into()));
     let mut log = |m: String| println!("{m}");
     match args.get(1).map(|s| s.as_str()) {
         Some("patch") => {
@@ -40,7 +42,7 @@ fn main() -> Result<()> {
             log(format!("translations: {} texts", store.len()));
             let mut originals = originals::open(&backup)?;
             let t = std::time::Instant::now();
-            patch::run(patch::Options { game: &game, store: &store, fonts_dir: &fonts, fonts: None, originals: &mut originals, out_dir: out.as_deref() }, &mut log)?;
+            patch::run(patch::Options { game: &game, store: &store, fonts_dir: &fonts, fonts: None, originals: &mut originals, out_dir: out.as_deref(), dry_run: args.iter().any(|a| a == "--dry-run") }, &mut log)?;
             log(format!("done in {:.0} s", t.elapsed().as_secs_f64()));
             Ok(())
         }

@@ -500,7 +500,8 @@ document.addEventListener("keydown", (e) => {
 });
 
 // ---------- corrections files ----------
-const STATUS = { nowa: "nowa", konflikt: "konflikt", jest: "już jest", "zła": "zła" };
+const STATUS = { nowa: "nowa", zmiana: "zmiana", konflikt: "konflikt", jest: "już jest", "zła": "zła" };
+const PICK = (st) => st === "nowa" || st === "zmiana"; // ticked by default
 let importItems = [];
 const lsGet = (k) => { try { return localStorage.getItem(k) || ""; } catch { return ""; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch { /* storage may be blocked */ } };
@@ -519,13 +520,15 @@ $("corr-file").onchange = async () => {
   importItems = r.items;
   const n = (st) => r.items.filter((x) => x.status === st).length;
   $("imp-head").textContent = `${r.author || "Ktoś bez pseudonimu"}${r.created ? ", " + r.created : ""}: ${r.items.length} poprawek ` +
-    `(nowe ${n("nowa")}, konflikty ${n("konflikt")}, już są ${n("jest")}, złe ${n("zła")}). Zaznaczone trafią do tłumaczenia ze statusem „do sprawdzenia”.`;
+    `(zmiany ${n("zmiana")}, nowe ${n("nowa")}, konflikty ${n("konflikt")}, już są ${n("jest")}, złe ${n("zła")}). ` +
+    (r.base ? `Pomocnik zaczynał od wersji ${r.base}${r.base_known ? "" : " (której nie masz – konflikty mogą być na wyrost)"}. ` : "") +
+    `„Zmiana” to kwestia, której od tamtej wersji nie ruszałeś; „konflikt” – zmienialiście ją obaj. Zaznaczone trafią do tłumaczenia ze statusem „do sprawdzenia”.`;
   $("imp-list").innerHTML = r.items.map((x) => {
-    const usable = x.status === "nowa" || x.status === "konflikt";
+    const usable = x.status === "nowa" || x.status === "zmiana" || x.status === "konflikt";
     return `<label class="imp-item ${usable ? "" : "off"}">
-      <input type="checkbox" data-id="${esc(x.id)}" ${x.status === "nowa" ? "checked" : ""} ${usable ? "" : "disabled"}>
+      <input type="checkbox" data-id="${esc(x.id)}" ${PICK(x.status) ? "checked" : ""} ${usable ? "" : "disabled"}>
       <span class="imp-status ${x.status === "zła" ? "zla" : x.status}">${STATUS[x.status] || x.status}</span>
-      <span><div class="imp-text"><span><b>Angielski</b>${esc(x.en)}</span><span><b>Teraz</b>${esc(x.current ?? "(brak tłumaczenia)")}</span>
+      <span><div class="imp-text"><span><b>Angielski</b>${esc(x.en)}</span><span><b>Teraz</b>${esc(x.current ?? "(brak tłumaczenia)")}</span>${x.status === "konflikt" && x.was != null ? `<span><b>Pomocnik widział</b>${esc(x.was || "(brak)")}</span>` : ""}
         <span class="new"><b>Propozycja</b>${esc(x.pl)}</span></div></span>
       ${x.problems.length ? `<span></span><span></span><span class="imp-problems">${esc(x.problems.join("; "))}</span>` : ""}
     </label>`;
@@ -542,7 +545,7 @@ $("imp-list").addEventListener("change", importCount);
 $("imp-all").onchange = () => {
   document.querySelectorAll("#imp-list input:not(:disabled)").forEach((c) => {
     const it = importItems.find((x) => x.id === c.dataset.id);
-    if (it && it.status === "nowa") c.checked = $("imp-all").checked;
+    if (it && PICK(it.status)) c.checked = $("imp-all").checked;
   });
   importCount();
 };

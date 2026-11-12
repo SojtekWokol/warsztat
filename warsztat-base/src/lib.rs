@@ -50,7 +50,7 @@ impl<'a> Ctx<'a> {
         self.by_id.get(id).map(|&i| &self.entries[i])
     }
     pub fn done_count(&self, es: &[&Entry]) -> usize {
-        es.iter().filter(|e| !self.store.pl(&e.id).trim().is_empty()).count()
+        es.iter().filter(|e| !self.store.pl(&e.id).is_empty()).count()
     }
 }
 
@@ -247,7 +247,7 @@ impl Workshop {
         {
             let mut st = self.store.lock().unwrap();
             for t in &targets {
-                st.set(&t.id, pl, if pl.trim().is_empty() { "todo" } else { status })?;
+                st.set(&t.id, pl, if pl.is_empty() { "todo" } else { status })?;
             }
             st.save()?;
         }
@@ -357,7 +357,7 @@ impl Workshop {
             }
             "name_save" => {
                 let pl = s(d, "pl");
-                self.store.lock().unwrap().update(s(d, "id"), pl, if pl.trim().is_empty() { "todo" } else { "draft" })?;
+                self.store.lock().unwrap().update(s(d, "id"), pl, if pl.is_empty() { "todo" } else { "draft" })?;
                 json!({"ok": true})
             }
             "release" => snapshots::make_release(self, s(d, "version"))?,

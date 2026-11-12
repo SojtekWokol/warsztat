@@ -59,6 +59,19 @@ impl TypeRegistry {
         }
         Ok(())
     }
+    /// Built-in trees for simple native classes a game may not ship in any bundle with type trees.
+    pub fn add_builtin(&mut self) {
+        let s = |name: &str| TypeNode { ty: "string".into(), name: name.into(), level: 1, byte_size: -1, meta: 0x4000, children: vec![] };
+        self.trees.entry((49, None)).or_insert_with(|| TypeNode {
+            ty: "TextAsset".into(),
+            name: "Base".into(),
+            level: 0,
+            byte_size: -1,
+            meta: 0,
+            children: vec![s("m_Name"), s("m_Script")],
+        });
+    }
+
     /// The tree for an object of `sf`: its own if the file has trees, else from the registry.
     pub fn tree_for<'a>(&'a self, sf: &'a SerializedFile, obj: &serialized::Object) -> Option<&'a TypeNode> {
         let t = &sf.types[obj.type_index];

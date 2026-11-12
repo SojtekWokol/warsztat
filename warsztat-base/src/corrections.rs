@@ -48,6 +48,9 @@ fn collapse_underscores(s: &str) -> String {
 }
 
 pub fn review(ws: &Workshop, cx: &Ctx, payload: &Value) -> Value {
+    // the release the helper started from: tells "they changed it" from "we both changed it"
+    let base_ver = payload.get("base").and_then(|x| x.as_str()).map(String::from);
+    let base = base_ver.as_deref().and_then(|v| crate::snapshots::release_texts(&ws.root, v));
     let items: Vec<Value> = payload
         .get("items")
         .and_then(|x| x.as_array())
@@ -59,19 +62,22 @@ pub fn review(ws: &Workshop, cx: &Ctx, payload: &Value) -> Value {
             let e = cx.entry(id);
             let cur = cx.store.map.get(id).map(|r| r.pl.clone());
             let pl = s(x, "pl");
+            let was = base.as_ref().map(|b| b.get(id).cloned().unwrap_or_default());
             let status = match e {
                 None => "zła",
                 Some(_) if pl.trim().is_empty() => "zła",
                 Some(e) if e.en != s(x, "en") => "zła",
                 _ if cur.as_deref() == Some(pl) => "jest",
-                _ if cur.as_deref().map_or(false, |c| !c.is_empty()) => "konflikt",
-                _ => "nowa",
+                _ if cur.as_deref().map_or(true, |c| c.is_empty()) => "nowa",
+                // we did not touch it since the helper's release: a clean change
+                _ if was.is_some() && cur.as_deref() == was.as_deref() => "zmiana",
+                _ => "konflikt",
             };
             let problems = if e.is_some() { ws.check(s(x, "en"), pl) } else { vec!["nieznany wpis".to_string()] };
-            json!({"id": id, "en": s(x, "en"), "pl": pl, "current": cur, "status": status, "problems": problems})
+            json!({"id": id, "en": s(x, "en"), "pl": pl, "current": cur, "was": was, "status": status, "problems": problems})
         })
         .collect();
-    json!({"author": payload.get("author"), "created": payload.get("created"), "items": items})
+    json!({"author": payload.get("author"), "created": payload.get("created"), "base": base_ver, "base_known": base.is_some(), "items": items})
 }
 
 pub fn accept(ws: &Workshop, d: &Value) -> Result<Value> {

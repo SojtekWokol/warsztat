@@ -247,7 +247,34 @@ impl Originals {
         marker_entry(cfg, game_file).map_or(false, |(w, _)| hash_file(game_file).map_or(false, |h| h == w))
     }
 
+    pub fn dir(&self) -> &Path {
+        &self.dir
+    }
+
     pub fn names(&self) -> Vec<String> {
         self.state.keys().cloned().collect()
     }
+}
+
+/// A short, stable folder name for one game installation (several copies of a game, e.g. Xbox and
+/// Steam, each get their own backups): the last folder names plus an FNV-1a hash of the full path.
+pub fn folder_id(game: &Path) -> String {
+    let full = game.to_string_lossy().to_lowercase().replace('/', "\\");
+    let mut h: u64 = 0xcbf29ce484222325;
+    for b in full.bytes() {
+        h ^= b as u64;
+        h = h.wrapping_mul(0x100000001b3);
+    }
+    let tail: String = game
+        .components()
+        .rev()
+        .take(2)
+        .map(|c| c.as_os_str().to_string_lossy().to_string())
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .collect::<Vec<_>>()
+        .join(" ");
+    let tail: String = tail.chars().map(|c| if c.is_alphanumeric() || c == ' ' || c == '-' { c } else { '_' }).take(40).collect();
+    format!("{} {:08x}", tail.trim(), h as u32)
 }

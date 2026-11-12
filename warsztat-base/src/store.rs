@@ -150,7 +150,7 @@ impl Store {
         }
         let f = self.place(id);
         self.dirty.insert(f);
-        if pl.trim().is_empty() && status == "todo" {
+        if pl.is_empty() && status == "todo" {
             self.map.remove(id);
         } else {
             let tags_ok = self.map.get(id).and_then(|r| r.tags_ok.clone());

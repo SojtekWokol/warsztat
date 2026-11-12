@@ -6,6 +6,8 @@ pub struct Pack {
     pub bundle: Bundle,
     /// (node index, parsed file)
     pub files: Vec<(usize, SerializedFile)>,
+    /// indices into `files` that were changed
+    pub dirty: std::collections::BTreeSet<usize>,
 }
 
 /// An object address inside a pack: file index (into `files`) and object index.
@@ -24,7 +26,47 @@ impl Pack {
                 files.push((i, SerializedFile::read(&n.data)?));
             }
         }
-        Ok(Pack { bundle, files })
+        Ok(Pack { bundle, files, dirty: Default::default() })
+    }
+
+    /// The loose serialized files of a game data folder (Steam builds: globalgamemanagers, levelN,
+    /// sharedassetsN.assets, … instead of one data.unity3d) as one pack. `source` gives the file to
+    /// read for each game file (the clean original when the game file is our patched one).
+    pub fn read_dir(dir: &std::path::Path, source: &dyn Fn(&std::path::Path) -> Result<std::path::PathBuf>) -> Result<Pack> {
+        let mut names: Vec<String> = std::fs::read_dir(dir)?
+            .filter_map(|e| e.ok())
+            .filter(|e| e.file_type().map_or(false, |t| t.is_file()))
+            .map(|e| e.file_name().to_string_lossy().to_string())
+            .filter(|n| {
+                let ext = n.rsplit_once('.').map(|x| x.1).unwrap_or("");
+                ext.is_empty() || ext == "assets" || ext == "resS" || ext == "resource"
+            })
+            .collect();
+        names.sort();
+        let mut nodes = Vec::new();
+        let mut files = Vec::new();
+        for n in names {
+            let data = std::fs::read(source(&dir.join(&n))?)?;
+            let is_res = n.ends_with(".resS") || n.ends_with(".resource");
+            let parsed = if is_res { None } else { SerializedFile::read(&data).ok() };
+            let flags = if parsed.is_some() { NODE_SERIALIZED } else { 0 };
+            if let Some(sf) = parsed {
+                files.push((nodes.len(), sf));
+            }
+            nodes.push(unity::bundle::Node { path: n, flags, data });
+        }
+        let bundle = Bundle { format: 0, version_player: String::new(), version_engine: String::new(), flags: 0, nodes };
+        Ok(Pack { bundle, files, dirty: Default::default() })
+    }
+
+    /// Mark a file as changed (for edits made directly on object data).
+    pub fn touch(&mut self, file: usize) {
+        self.dirty.insert(file);
+    }
+
+    /// Name of a file of the pack (its node path).
+    pub fn file_name(&self, file: usize) -> &str {
+        &self.bundle.nodes[self.files[file].0].path
     }
 
     pub fn sf(&self, f: usize) -> &SerializedFile {
@@ -55,6 +97,7 @@ impl Pack {
         let big = self.files[at.file].1.big_endian;
         let data = typetree::write(&tree, v, big)?;
         self.files[at.file].1.objects[at.obj].data = data;
+        self.dirty.insert(at.file);
         Ok(())
     }
 

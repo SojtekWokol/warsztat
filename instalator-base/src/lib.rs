@@ -60,10 +60,16 @@ pub trait Installer: Send + Sync + 'static {
     fn installed(&self, game: &Path) -> bool;
     /// Install the given texts (JSON object {id: text}); log lines starting "[n/m] " are shown as stages.
     fn install(&self, game: &Path, backups: &Path, texts: &[u8], log: &mut dyn FnMut(String)) -> Result<()>;
+    /// Compatibility check: go through the whole install in memory, write nothing, log a report.
+    fn check(&self, _game: &Path, _backups: &Path, _texts: &[u8], log: &mut dyn FnMut(String)) -> Result<()> {
+        log("Ta gra nie ma jeszcze sprawdzania zgodności.".into());
+        Ok(())
+    }
     /// Put the original files back.
     fn uninstall(&self, game: &Path, backups: &Path, log: &mut dyn FnMut(String)) -> Result<()>;
     /// Start the game.
-    fn launch(&self) -> Result<()>;
+    /// Start the game installed in `game` (a Steam copy starts through Steam, see [`launch_auto`]).
+    fn launch(&self, game: &Path) -> Result<()>;
     /// Short note under the buttons (HTML), e.g. which language to pick in the game.
     fn note_html(&self) -> String {
         String::new()
@@ -78,6 +84,19 @@ pub trait Installer: Send + Sync + 'static {
     }
 }
 
+/// Short stable folder name for a game installation (same scheme as the `kopie` crate).
+fn kopie_id(game: &Path) -> String {
+    let full = game.to_string_lossy().to_lowercase().replace('/', "\\");
+    let mut h: u64 = 0xcbf29ce484222325;
+    for b in full.bytes() {
+        h ^= b as u64;
+        h = h.wrapping_mul(0x100000001b3);
+    }
+    let tail: Vec<String> = game.components().rev().take(2).map(|c| c.as_os_str().to_string_lossy().to_string()).collect();
+    let tail: String = tail.into_iter().rev().collect::<Vec<_>>().join(" ").chars().map(|c| if c.is_alphanumeric() || c == ' ' || c == '-' { c } else { '_' }).take(40).collect();
+    format!("{} {:08x}", tail.trim(), h as u32)
+}
+
 pub fn data_dir(name: &str) -> PathBuf {
     std::env::var_os("LOCALAPPDATA").map(PathBuf::from).unwrap_or_else(std::env::temp_dir).join(name)
 }
@@ -87,8 +106,8 @@ pub fn steam_libraries() -> Vec<PathBuf> {
     let out = std::process::Command::new("reg").args(["query", r"HKCU\Software\Valve\Steam", "/v", "SteamPath"]).creation_flags(CREATE_NO_WINDOW).output();
     let Ok(out) = out else { return vec![] };
     let text = String::from_utf8_lossy(&out.stdout);
-    let Some(steam) = text.lines().find_map(|l| l.split("REG_SZ").nth(1)).map(|s| PathBuf::from(s.trim())) else { return vec![] };
-    let mut libs = vec![steam.clone()];
+    let Some(steam) = text.lines().find_map(|l| l.split("REG_SZ").nth(1)).map(|s| PathBuf::from(s.trim().replace('/', "\\"))) else { return vec![] };
+    let mut libs = Vec::new();
     if let Ok(vdf) = std::fs::read_to_string(steam.join("steamapps").join("libraryfolders.vdf")) {
         for line in vdf.lines() {
             let parts: Vec<&str> = line.split('"').collect();
@@ -97,7 +116,9 @@ pub fn steam_libraries() -> Vec<PathBuf> {
             }
         }
     }
-    libs.dedup();
+    libs.push(steam.clone());
+    let mut seen = std::collections::HashSet::new();
+    libs.retain(|p| seen.insert(p.to_string_lossy().to_lowercase().replace('/', "\\")));
     libs
 }
 
@@ -105,7 +126,8 @@ fn find_games(inst: &dyn Installer) -> Vec<Value> {
     let mut out: Vec<Value> = Vec::new();
     let mut push = |p: PathBuf, kind: &str| {
         if let Some(g) = inst.normalize(&p) {
-            if !out.iter().any(|v| v["path"] == json!(g)) {
+            let key = |s: &str| s.to_lowercase().replace('/', "\\");
+            if !out.iter().any(|v| key(v["path"].as_str().unwrap_or("")) == key(&g.to_string_lossy())) {
                 out.push(json!({"path": g, "kind": kind}));
             }
         }
@@ -117,10 +139,11 @@ fn find_games(inst: &dyn Installer) -> Vec<Value> {
     }
     if let Some(prefix) = inst.steam_prefix() {
         for lib in steam_libraries() {
+            // by name, and by contents: a Steam install folder may carry an internal name (the EA2
+            // demo lives in "Project FLEA")
             for e in std::fs::read_dir(lib.join("steamapps").join("common")).into_iter().flatten().flatten() {
-                if e.file_name().to_string_lossy().starts_with(prefix) {
-                    push(e.path(), "Steam");
-                }
+                let _ = prefix;
+                push(e.path(), "Steam");
             }
         }
     }
@@ -151,8 +174,9 @@ impl App {
     fn dir(&self) -> PathBuf {
         data_dir(self.inst.data_dir_name())
     }
-    fn backups(&self) -> PathBuf {
-        self.dir().join("kopie")
+    /// Backups of one game installation (each copy of the game its own folder).
+    fn backups(&self, game: &Path) -> PathBuf {
+        self.dir().join("kopie").join(kopie_id(game))
     }
     fn best(&self) -> updates::Translation {
         updates::best(&self.dir(), self.inst.version(), self.inst.texts())
@@ -164,25 +188,31 @@ fn info(app: tauri::State<'_, App>) -> Value {
     let i = &app.inst;
     let t = app.best();
     json!({"game": i.game(), "version": t.version, "count": t.count, "theme": i.theme_css(), "logo": i.logo_html(),
-           "note": i.note_html(), "games": find_games(i.as_ref()), "backup": app.backups(),
+           "note": i.note_html(), "games": find_games(i.as_ref()), "backup": app.dir().join("kopie"),
            "can_update": i.update_repo().is_some(), "settings": updates::settings(&app.dir()),
            "launcher": updates::launcher_arg(), "shortcut": i.shortcut_name(), "finish": i.finish_html()})
 }
 
+/// Off the window's thread: it runs tasklist and hashes files, which would freeze the window.
 #[tauri::command]
-fn status(app: tauri::State<'_, App>, path: String) -> Value {
-    let Some(g) = app.inst.normalize(Path::new(&path)) else { return json!({"valid": false}) };
-    let installed = app.inst.installed(&g);
-    let iv = updates::installed_version(&app.dir(), &g);
-    let best = app.best().version;
+async fn status(app: tauri::State<'_, App>, path: String) -> Result<Value, String> {
+    let (inst, dir) = (app.inst.clone(), app.dir());
+    tauri::async_runtime::spawn_blocking(move || status_of(inst.as_ref(), &dir, &path)).await.map_err(|e| e.to_string())
+}
+
+fn status_of(inst: &dyn Installer, dir: &Path, path: &str) -> Value {
+    let Some(g) = inst.normalize(Path::new(path)) else { return json!({"valid": false}) };
+    let installed = inst.installed(&g);
+    let iv = updates::installed_version(dir, &g);
+    let best = updates::best(dir, inst.version(), inst.texts()).version;
     // the game replaced its files (update/repair): we installed here before, now the translation is gone
     let wiped = !installed && iv.is_some();
     let outdated = installed && iv.as_deref().map_or(false, |v| updates::cmp_versions(&best, v) == std::cmp::Ordering::Greater);
-    json!({"valid": true, "path": g, "installed": installed, "writable": can_write(&app.inst.write_probe_dir(&g)), "running": app.inst.running(),
+    json!({"valid": true, "path": g, "installed": installed, "writable": can_write(&inst.write_probe_dir(&g)), "running": inst.running(),
            "installed_version": iv, "available": best, "outdated": outdated, "wiped": wiped})
 }
 
-fn start(app: &App, path: String, install: bool) -> Result<(), String> {
+fn start(app: &App, path: String, what: &'static str) -> Result<(), String> {
     let g = app.inst.normalize(Path::new(&path)).ok_or("To nie jest folder tej gry.")?;
     {
         let mut j = app.job.lock().unwrap();
@@ -191,7 +221,7 @@ fn start(app: &App, path: String, install: bool) -> Result<(), String> {
         }
         *j = Job { running: true, ..Default::default() };
     }
-    let (inst, job, backups, dir) = (app.inst.clone(), app.job.clone(), app.backups(), app.dir());
+    let (inst, job, backups, dir) = (app.inst.clone(), app.job.clone(), app.backups(&g), app.dir());
     let t = app.best();
     std::thread::spawn(move || {
         let mut push = |m: String| {
@@ -201,9 +231,11 @@ fn start(app: &App, path: String, install: bool) -> Result<(), String> {
             }
             j.log.push(m);
         };
-        let res = if inst.running() {
+        let res = if what == "check" {
+            inst.check(&g, &backups, &t.texts, &mut push)
+        } else if inst.running() {
             Err(anyhow::anyhow!("Gra jest uruchomiona - zamknij ją i spróbuj ponownie."))
-        } else if install {
+        } else if what == "install" {
             inst.install(&g, &backups, &t.texts, &mut push).and_then(|_| updates::set_installed_version(&dir, &g, Some(&t.version)))
         } else {
             inst.uninstall(&g, &backups, &mut push).and_then(|_| updates::set_installed_version(&dir, &g, None))
@@ -220,12 +252,17 @@ fn start(app: &App, path: String, install: bool) -> Result<(), String> {
 
 #[tauri::command]
 fn install(app: tauri::State<'_, App>, path: String) -> Result<(), String> {
-    start(&app, path, true)
+    start(&app, path, "install")
 }
 
 #[tauri::command]
 fn uninstall(app: tauri::State<'_, App>, path: String) -> Result<(), String> {
-    start(&app, path, false)
+    start(&app, path, "uninstall")
+}
+
+#[tauri::command]
+fn check(app: tauri::State<'_, App>, path: String) -> Result<(), String> {
+    start(&app, path, "check")
 }
 
 #[tauri::command]
@@ -250,8 +287,38 @@ fn grant(app: tauri::State<'_, App>, path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn launch(app: tauri::State<'_, App>) -> Result<(), String> {
-    app.inst.launch().map_err(|e| e.to_string())
+fn launch(app: tauri::State<'_, App>, path: String) -> Result<(), String> {
+    let g = app.inst.normalize(Path::new(&path)).ok_or("To nie jest folder gry.")?;
+    app.inst.launch(&g).map_err(|e| e.to_string())
+}
+
+/// The Steam app id of a game installed in a Steam library folder (steamapps/common/<dir>), read from
+/// the library's appmanifest files.
+pub fn steam_app_id(game: &Path) -> Option<String> {
+    let dir = game.ancestors().find(|a| a.parent().and_then(|p| p.file_name()).map_or(false, |n| n.eq_ignore_ascii_case("common")))?;
+    let install = dir.file_name()?.to_string_lossy().to_lowercase();
+    let steamapps = dir.parent()?.parent()?;
+    for e in std::fs::read_dir(steamapps).ok()?.flatten() {
+        let name = e.file_name().to_string_lossy().to_string();
+        if !(name.starts_with("appmanifest_") && name.ends_with(".acf")) {
+            continue;
+        }
+        let text = std::fs::read_to_string(e.path()).unwrap_or_default();
+        let field = |k: &str| text.lines().find_map(|l| { let p: Vec<&str> = l.split('"').collect(); (p.len() >= 4 && p[1] == k).then(|| p[3].to_string()) });
+        if field("installdir").map(|d| d.to_lowercase()) == Some(install.clone()) {
+            return field("appid");
+        }
+    }
+    None
+}
+
+/// Start a game: through Steam when it sits in a Steam library, else through the Xbox app.
+pub fn launch_auto(game: &Path, xbox_folder_part: &str) -> Result<()> {
+    if let Some(id) = steam_app_id(game) {
+        std::process::Command::new("cmd").args(["/C", "start", "", &format!("steam://rungameid/{id}")]).creation_flags(CREATE_NO_WINDOW).spawn()?;
+        return Ok(());
+    }
+    launch_xbox(xbox_folder_part)
 }
 
 /// Look for a newer translation on GitHub and download it (texts only).
@@ -317,5 +384,5 @@ pub fn builder<I: Installer>(inst: I) -> tauri::Builder<tauri::Wry> {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(App { inst: Arc::new(inst), job: Arc::new(Mutex::new(Job::default())) })
-        .invoke_handler(tauri::generate_handler![info, status, install, uninstall, progress, grant, launch, check_update, set_setting, create_shortcut, open_url, quit])
+        .invoke_handler(tauri::generate_handler![info, status, install, uninstall, check, progress, grant, launch, check_update, set_setting, create_shortcut, open_url, quit])
 }
