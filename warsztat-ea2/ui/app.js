@@ -633,10 +633,9 @@ function cardsOpen(kind, title, items) {
   cards = { kind, items, i: 0, done: [], editing: false };
   const imp = kind === "import";
   $("cards-title").textContent = title;
-  $("cards-no-label").textContent = imp ? "Odrzuć" : "Pomiń";
-  $("cards-yes-label").textContent = imp ? "Przyjmij" : "Zatwierdź";
-  document.querySelector(".card-hint.left").textContent = imp ? "← odrzuć" : "← pomiń";
-  document.querySelector(".card-hint.right").textContent = imp ? "przyjmij →" : "zatwierdź →";
+  $("cards-no-label").textContent = $("cards-no-key").textContent = imp ? "odrzuć" : "pomiń";
+  $("cards-yes-label").textContent = $("cards-yes-key").textContent = imp ? "przyjmij" : "zatwierdź";
+  $("card").dataset.no = imp ? "ODRZUĆ" : "POMIŃ";
   $("cards").classList.remove("hidden");
   cardsShow();
 }
@@ -645,9 +644,10 @@ function cardsShow() {
   el.style.transform = ""; el.style.opacity = ""; el.className = "swipe-card";
   const imp = c.kind === "import";
   const yes = c.done.filter((d) => d.yes).length, later = c.done.filter((d) => d.mode === "later").length;
+  $("cards-bar").style.width = `${(100 * Math.min(c.i, c.items.length)) / c.items.length}%`;
   $("cards-count").textContent = `${Math.min(c.i + 1, c.items.length)} / ${c.items.length} · ${imp ? "przyjęte" : "zatwierdzone"} ${yes} · do poprawy ${later}`;
   if (c.i >= c.items.length) {
-    el.innerHTML = `<div class="c-done">Koniec! ${imp ? "Przyjęte" : "Zatwierdzone"}: ${yes}, do poprawy: ${later}, ${imp ? "odrzucone" : "pominięte"}: ${c.done.length - yes - later}.<br><br>Esc zamyka, Backspace cofa ostatnią decyzję.</div>`;
+    el.innerHTML = `<div class="c-done"><big>Koniec!</big>${imp ? "Przyjęte" : "Zatwierdzone"}: ${yes}, do poprawy: ${later}, ${imp ? "odrzucone" : "pominięte"}: ${c.done.length - yes - later}.<br><br>Esc zamyka, Backspace cofa ostatnią decyzję.</div>`;
     return;
   }
   const x = c.items[c.i];
@@ -657,7 +657,7 @@ function cardsShow() {
       ${x.kind === "puzzle" ? `<span class="c-tag warn">hasło zagadki – zatwierdzaj po sprawdzeniu w grze</span>` : ""}
       ${x.weight ? `<span class="c-tag ${x.weight === "wysoka" ? "warn" : ""}">${esc(x.weight)}</span>` : ""}
       ${!imp && x.status === "review" ? `<span class="c-tag">do sprawdzenia</span>` : ""}${!imp && x.status === "draft" ? `<span class="c-tag">szkic</span>` : ""}
-      <span>${esc(x.key || x.id)}</span></div>
+      <span class="c-key">${esc(x.key || x.id)}</span></div>
     <div class="c-block"><b>Angielski</b><div class="c-en">${esc(x.en)}</div></div>
     ${imp ? `<div class="c-block"><b>Teraz</b><div class="c-old">${esc(x.current ?? "(brak)")}</div></div>` : ""}
     <div class="c-block"><b>${imp ? "Propozycja" : "Polski"}</b>${c.editing ? `<textarea id="card-text">${esc(x.pl)}</textarea>` : `<div class="c-pl">${esc(x.pl)}</div>`}</div>
@@ -758,5 +758,9 @@ $("cards-page").onclick = () => {
 $("imp-cards").onclick = () => {
   const usable = importItems.filter((x) => x.status === "nowa" || x.status === "zmiana" || x.status === "konflikt");
   $("import").classList.add("hidden");
-  cardsOpen("import", "Poprawki z pliku", usable.map((x) => ({ ...x, curStatus: null })));
+  // notes written as "Speaker: reason" give the card its speaker
+  cardsOpen("import", "Poprawki z pliku", usable.map((x) => {
+    const m = !x.who && /^([^:]{2,40}): (.+)$/s.exec(x.note || "");
+    return { ...x, curStatus: null, ...(m ? { who: m[1] === "GRACZ" ? "gracz" : m[1], note: m[2] } : {}) };
+  }));
 };

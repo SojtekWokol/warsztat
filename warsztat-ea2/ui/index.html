@@ -175,19 +175,19 @@
   <div id="drawer-body"></div>
 </div>
 <div id="cards" class="hidden">
-  <div class="cards-top"><span id="cards-title"></span><span id="cards-count"></span><button id="cards-close">Zamknij (Esc)</button></div>
+  <div class="cards-progress"><div id="cards-bar"></div></div>
+  <div class="cards-top"><span id="cards-title"></span><span id="cards-count"></span><button id="cards-close" class="cards-x" title="Zamknij (Esc)">✕</button></div>
   <div class="cards-stage">
-    <div class="card-hint left">← pomiń</div><div class="card-hint right">zatwierdź →</div>
     <div id="card" class="swipe-card"></div>
   </div>
   <div class="cards-actions">
-    <button id="cards-no" title="Strzałka w lewo">✕ <span id="cards-no-label">Pomiń</span></button>
-    <button id="cards-later" title="Strzałka w górę: trafi do listy „do sprawdzenia”">↑ Do poprawy</button>
-    <button id="cards-undo" title="Backspace">↶ Cofnij</button>
-    <button id="cards-edit" title="Strzałka w dół albo E">✎ Popraw</button>
-    <button id="cards-yes" class="red" title="Strzałka w prawo">✓ <span id="cards-yes-label">Zatwierdź</span></button>
+    <div class="ca"><button id="cards-undo" class="round sm" title="Cofnij (Backspace)">↶</button><span>cofnij</span></div>
+    <div class="ca"><button id="cards-no" class="round lg no" title="Strzałka w lewo">✕</button><span id="cards-no-label">pomiń</span></div>
+    <div class="ca"><button id="cards-later" class="round md later" title="Strzałka w górę: trafi na listę „do sprawdzenia”">↑</button><span>do poprawy</span></div>
+    <div class="ca"><button id="cards-yes" class="round lg yes" title="Strzałka w prawo">✓</button><span id="cards-yes-label">zatwierdź</span></div>
+    <div class="ca"><button id="cards-edit" class="round sm" title="Popraw tekst (↓ albo E)">✎</button><span>popraw</span></div>
   </div>
-  <p class="cards-keys">→ zatwierdź · ↑ do poprawy (lista „do sprawdzenia”) · ← odrzuć / pomiń · ↓ albo E poprawka (Ctrl+Enter zapisuje jako zatwierdzoną) · Backspace cofa · Esc zamyka</p>
+  <p class="cards-keys"><kbd>←</kbd> <span id="cards-no-key">pomiń</span> · <kbd>↑</kbd> do poprawy · <kbd>→</kbd> <span id="cards-yes-key">zatwierdź</span> · <kbd>↓</kbd> popraw · <kbd>Backspace</kbd> cofnij · <kbd>Esc</kbd> zamknij</p>
 </div>
 <div id="import" class="hidden">
   <div class="setup-card import-card">
