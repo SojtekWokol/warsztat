@@ -1,5 +1,9 @@
 # Warsztat tłumaczeń
 
+> **Szukasz spolszczenia Escape Academy 2?** Instalator dla graczy jest tutaj:
+> **[SojtekWokol/escape-academy-2-spolszczenie](https://github.com/SojtekWokol/escape-academy-2-spolszczenie)**
+> ([strona i pobieranie](https://sojtekwokol.github.io/escape-academy-2-spolszczenie/)). To repozytorium zawiera kod narzędzi.
+
 Narzędzia do fanowskich tłumaczeń gier, w Rust: wspólny warsztat (edytor z podglądem, słownik, pamięć tłumaczeń,
 podpowiedzi z lokalnego modelu Bielik, kontrola znaczników, poprawki z plików, wydania) oraz moduły konkretnych gier.
 

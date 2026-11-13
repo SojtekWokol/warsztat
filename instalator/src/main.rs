@@ -30,7 +30,7 @@ impl instalator::Installer for Ea2 {
         TEXTS
     }
     fn update_repo(&self) -> Option<&str> {
-        Some("SojtekWokol/ea2-tlumaczenie")
+        Some("SojtekWokol/escape-academy-2-spolszczenie")
     }
     fn theme_css(&self) -> &str {
         include_str!("theme.css")
