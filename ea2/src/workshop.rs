@@ -171,7 +171,9 @@ impl Game for Ea2 {
             }
             let (key, ctx) = (&row[0], row.get(1).cloned().unwrap_or_default());
             let en = row.get(cen).cloned().unwrap_or_default();
-            if en.trim().is_empty() {
+            // whitespace-only English stays in: slots like "letter of the password; leave blank if not
+            // needed" that another language may fill (e.g. a longer password)
+            if en.is_empty() {
                 continue;
             }
             let refs = ["de", "fr", "es"].iter().filter_map(|l| Some((l.to_string(), row.get(col[l])?.clone()))).collect();
