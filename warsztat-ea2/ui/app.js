@@ -658,6 +658,7 @@ function cardsShow() {
       ${x.weight ? `<span class="c-tag ${x.weight === "wysoka" ? "warn" : ""}">${esc(x.weight)}</span>` : ""}
       ${!imp && x.status === "review" ? `<span class="c-tag">do sprawdzenia</span>` : ""}${!imp && x.status === "draft" ? `<span class="c-tag">szkic</span>` : ""}
       <span class="c-key">${esc(x.key || x.id)}</span></div>
+    ${x.ctx ? `<div class="c-ctx"><b>Notatka twórców</b>${esc(x.ctx)}</div>` : ""}
     <div class="c-block"><b>Angielski</b><div class="c-en">${esc(x.en)}</div></div>
     ${imp ? `<div class="c-block"><b>Teraz</b><div class="c-old">${esc(x.current ?? "(brak)")}</div></div>` : ""}
     <div class="c-block"><b>${imp ? "Propozycja" : "Polski"}</b>${c.editing ? `<textarea id="card-text">${esc(x.pl)}</textarea>` : `<div class="c-pl">${esc(x.pl)}</div>`}</div>

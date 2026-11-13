@@ -448,3 +448,5 @@ button.round.no:hover, button.round.yes:hover, button.round.later:hover { backgr
 .cards-keys { margin: 0; font-size: 12px; color: var(--t3); text-align: center; }
 .cards-keys kbd { padding: 1px 6px; border: 2px solid var(--ink); border-radius: 5px; background: rgba(0,0,0,.3); color: var(--t2); font: 800 11px/1.4 var(--text); }
 @media (max-height: 560px) { .cards-keys { display: none; } button.round.lg { width: 58px; height: 58px; } }
+.swipe-card .c-ctx { margin-top: 14px; padding: 8px 12px; border-left: 4px solid var(--clue); background: rgba(255,240,107,.07); border-radius: 6px; font-size: 13px; color: var(--t1); }
+.swipe-card .c-ctx b { display: block; font: 800 11px/1.4 var(--text); color: var(--clue); }
