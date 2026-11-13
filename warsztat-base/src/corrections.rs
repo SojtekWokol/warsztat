@@ -74,7 +74,9 @@ pub fn review(ws: &Workshop, cx: &Ctx, payload: &Value) -> Value {
                 _ => "konflikt",
             };
             let problems = if e.is_some() { ws.check(s(x, "en"), pl) } else { vec!["nieznany wpis".to_string()] };
-            json!({"id": id, "en": s(x, "en"), "pl": pl, "current": cur, "was": was, "status": status, "problems": problems})
+            // optional helper's explanation ("note") and weight, shown next to the proposal
+            json!({"id": id, "en": s(x, "en"), "pl": pl, "current": cur, "was": was, "status": status, "problems": problems,
+                   "note": s(x, "note"), "weight": s(x, "weight")})
         })
         .collect();
     json!({"author": payload.get("author"), "created": payload.get("created"), "base": base_ver, "base_known": base.is_some(), "items": items})

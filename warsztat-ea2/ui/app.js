@@ -530,6 +530,7 @@ $("corr-file").onchange = async () => {
       <span class="imp-status ${x.status === "zła" ? "zla" : x.status}">${STATUS[x.status] || x.status}</span>
       <span><div class="imp-text"><span><b>Angielski</b>${esc(x.en)}</span><span><b>Teraz</b>${esc(x.current ?? "(brak tłumaczenia)")}</span>${x.status === "konflikt" && x.was != null ? `<span><b>Pomocnik widział</b>${esc(x.was || "(brak)")}</span>` : ""}
         <span class="new"><b>Propozycja</b>${esc(x.pl)}</span></div></span>
+      ${x.note ? `<span></span><span></span><span class="imp-note">${x.weight ? `<b class="w-${esc(x.weight)}">${esc(x.weight)}</b> ` : ""}${esc(x.note)}</span>` : ""}
       ${x.problems.length ? `<span></span><span></span><span class="imp-problems">${esc(x.problems.join("; "))}</span>` : ""}
     </label>`;
   }).join("");
