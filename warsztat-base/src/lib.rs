@@ -296,14 +296,17 @@ impl Workshop {
                 json!({"problems": p, "tag_problems": has_tag, "tags_ok": accepted})
             }
             "approve" => {
-                // approve drafts (texts read and corrected by a person); "to check" ones stay as they are
+                // approve drafts (texts read and corrected by a person); "to check" ones only with review: true,
+                // and never puzzle answers - those are approved after playing the puzzle in the game
                 let ids: Vec<String> = d.get("ids").and_then(|x| x.as_array()).map(|a| a.iter().filter_map(|x| x.as_str().map(String::from)).collect()).unwrap_or_default();
+                let with_review = d.get("review").and_then(|x| x.as_bool()).unwrap_or(false);
                 let mut n = 0;
                 {
                     let mut st = self.store.lock().unwrap();
                     for id in &ids {
+                        let puzzle = self.by_id.get(id).map_or(false, |&i| self.entries[i].kind == "puzzle");
                         if let Some(r) = st.map.get(id).cloned() {
-                            if r.status == "draft" && !r.pl.is_empty() {
+                            if (r.status == "draft" || (with_review && r.status == "review" && !puzzle)) && !r.pl.is_empty() {
                                 st.set(id, &r.pl, "done")?;
                                 n += 1;
                             }

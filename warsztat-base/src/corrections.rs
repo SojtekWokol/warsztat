@@ -84,18 +84,20 @@ pub fn review(ws: &Workshop, cx: &Ctx, payload: &Value) -> Value {
 
 pub fn accept(ws: &Workshop, d: &Value) -> Result<Value> {
     let ids: Vec<&str> = d.get("ids").and_then(|x| x.as_array()).map(|a| a.iter().filter_map(|x| x.as_str()).collect()).unwrap_or_default();
+    // "done" when the person approved the proposals right in the import list, else "to check"
+    let status = if s(d, "status") == "done" { "done" } else { "review" };
     let mut taken = 0;
     {
         let mut st = ws.store.lock().unwrap();
         for x in d.get("items").and_then(|x| x.as_array()).cloned().unwrap_or_default() {
             let id = s(&x, "id");
             if ids.contains(&id) && ws.by_id.contains_key(id) {
-                st.set(id, s(&x, "pl"), "review")?;
+                st.set(id, s(&x, "pl"), status)?;
                 taken += 1;
             }
         }
         st.save()?;
     }
-    ws.say(format!("Przyjęto {taken} poprawek (status: do sprawdzenia)."));
+    ws.say(format!("Przyjęto {taken} poprawek (status: {}).", if status == "done" { "zatwierdzone" } else { "do sprawdzenia" }));
     Ok(json!({"lines": taken}))
 }

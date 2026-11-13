@@ -295,10 +295,20 @@ $("approved").onchange = () => { if ($("approved").checked) $("review").checked 
 $("review").onchange = () => { if ($("review").checked) $("approved").checked = false; };
 $("approve-page").onclick = async () => {
   if (!page) return;
-  const ids = page.rows.filter((x) => x.pl != null && x.status === "draft").map((x) => x.id);
-  if (!ids.length) return say("Na tej stronie nie ma szkiców do zatwierdzenia.");
-  if (!confirm(`Zatwierdzić ${ids.length} kwestii na tej stronie?`)) return;
-  report(await post("/api/approve", { ids }));
+  const drafts = page.rows.filter((x) => x.pl != null && x.status === "draft");
+  const rev = page.rows.filter((x) => x.pl != null && x.status === "review" && x.kind !== "puzzle");
+  if (!drafts.length && !rev.length) return say("Na tej stronie nie ma nic do zatwierdzenia (hasła zagadek zatwierdza się po sprawdzeniu w grze).");
+  let review = false;
+  if (rev.length) {
+    review = confirm(`Na tej stronie jest ${rev.length} kwestii „do sprawdzenia”. Zatwierdzić też je?
+
+OK – zatwierdź szkice i „do sprawdzenia” (${drafts.length + rev.length})
+Anuluj – ${drafts.length ? "tylko szkice (" + drafts.length + ")" : "nic"}
+
+Hasła zagadek zostają do sprawdzenia w grze.`);
+    if (!review && !drafts.length) return;
+  } else if (!confirm(`Zatwierdzić ${drafts.length} kwestii na tej stronie?`)) return;
+  report(await post("/api/approve", { ids: [...drafts, ...(review ? rev : [])].map((x) => x.id), review }));
   loadPage(page.key, current);
 };
 
@@ -535,6 +545,7 @@ $("corr-file").onchange = async () => {
     </label>`;
   }).join("");
   importCount();
+  $("imp-done").checked = lsGet("impDone") === "1";
   $("import").classList.remove("hidden");
 };
 function importCount() {
@@ -553,7 +564,8 @@ $("imp-all").onchange = () => {
 $("imp-cancel").onclick = () => $("import").classList.add("hidden");
 $("imp-accept").onclick = async () => {
   const ids = [...document.querySelectorAll("#imp-list input:checked")].map((c) => c.dataset.id);
-  const r = await post("/api/corr_accept", { ids, items: importItems });
+  lsSet("impDone", $("imp-done").checked ? "1" : "");
+  const r = await post("/api/corr_accept", { ids, items: importItems, status: $("imp-done").checked ? "done" : "review" });
   if (r.error) return say(r.error);
   $("import").classList.add("hidden");
   poll(); refreshLists(); loadNames();
@@ -611,3 +623,140 @@ document.querySelector("nav").addEventListener("wheel", (e) => {
   const nav = e.currentTarget;
   if (nav.scrollWidth > nav.clientWidth && Math.abs(e.deltaY) > Math.abs(e.deltaX)) { nav.scrollLeft += e.deltaY; e.preventDefault(); }
 }, { passive: false });
+
+
+// ---------- swipe cards: decide one text at a time (→ approve / accept, ← skip / reject) ----------
+// kind "page": texts of the open page that wait for a decision (to check, drafts); "import": proposals from a file
+let cards = null;
+function cardsOpen(kind, title, items) {
+  if (!items.length) return say(kind === "import" ? "Nie ma poprawek do przejrzenia." : "Na tej stronie nie ma kwestii do zatwierdzenia.");
+  cards = { kind, items, i: 0, done: [], editing: false };
+  const imp = kind === "import";
+  $("cards-title").textContent = title;
+  $("cards-no-label").textContent = imp ? "Odrzuć" : "Pomiń";
+  $("cards-yes-label").textContent = imp ? "Przyjmij" : "Zatwierdź";
+  document.querySelector(".card-hint.left").textContent = imp ? "← odrzuć" : "← pomiń";
+  document.querySelector(".card-hint.right").textContent = imp ? "przyjmij →" : "zatwierdź →";
+  $("cards").classList.remove("hidden");
+  cardsShow();
+}
+function cardsShow() {
+  const c = cards, el = $("card");
+  el.style.transform = ""; el.style.opacity = ""; el.className = "swipe-card";
+  const imp = c.kind === "import";
+  const yes = c.done.filter((d) => d.yes).length, later = c.done.filter((d) => d.mode === "later").length;
+  $("cards-count").textContent = `${Math.min(c.i + 1, c.items.length)} / ${c.items.length} · ${imp ? "przyjęte" : "zatwierdzone"} ${yes} · do poprawy ${later}`;
+  if (c.i >= c.items.length) {
+    el.innerHTML = `<div class="c-done">Koniec! ${imp ? "Przyjęte" : "Zatwierdzone"}: ${yes}, do poprawy: ${later}, ${imp ? "odrzucone" : "pominięte"}: ${c.done.length - yes - later}.<br><br>Esc zamyka, Backspace cofa ostatnią decyzję.</div>`;
+    return;
+  }
+  const x = c.items[c.i];
+  const who = x.who || (x.kind === "talk" || x.src === "y" ? "gracz / narrator" : "");
+  el.innerHTML = `
+    <div class="c-meta">${who ? `<span class="c-who">${esc(who)}</span>` : ""}
+      ${x.kind === "puzzle" ? `<span class="c-tag warn">hasło zagadki – zatwierdzaj po sprawdzeniu w grze</span>` : ""}
+      ${x.weight ? `<span class="c-tag ${x.weight === "wysoka" ? "warn" : ""}">${esc(x.weight)}</span>` : ""}
+      ${!imp && x.status === "review" ? `<span class="c-tag">do sprawdzenia</span>` : ""}${!imp && x.status === "draft" ? `<span class="c-tag">szkic</span>` : ""}
+      <span>${esc(x.key || x.id)}</span></div>
+    <div class="c-block"><b>Angielski</b><div class="c-en">${esc(x.en)}</div></div>
+    ${imp ? `<div class="c-block"><b>Teraz</b><div class="c-old">${esc(x.current ?? "(brak)")}</div></div>` : ""}
+    <div class="c-block"><b>${imp ? "Propozycja" : "Polski"}</b>${c.editing ? `<textarea id="card-text">${esc(x.pl)}</textarea>` : `<div class="c-pl">${esc(x.pl)}</div>`}</div>
+    ${x.note ? `<div class="c-note">${esc(x.note)}</div>` : ""}
+    ${x.problems && x.problems.length ? `<div class="c-note bad">${esc(x.problems.join("; "))}</div>` : ""}`;
+  if (c.editing) { const t = $("card-text"); t.focus(); t.setSelectionRange(t.value.length, t.value.length); }
+}
+async function cardsDecide(mode) {
+  // mode: "yes" approve, "later" to check (fix later), "no" reject / skip
+  const yes = mode === "yes";
+  const c = cards;
+  if (!c || c.busy || c.i >= c.items.length) return;
+  const x = c.items[c.i];
+  const text = c.editing ? $("card-text").value : x.pl;
+  const before = c.kind === "import" ? { pl: x.current, status: x.curStatus } : { pl: x.pl, status: x.status };
+  const save = yes || (mode === "later" && !(c.kind !== "import" && x.status === "review" && text === x.pl));
+  if (save) {
+    c.busy = true;
+    const r = await post("/api/save", { id: x.id, pl: text, status: yes ? "done" : "review", everywhere: false });
+    c.busy = false;
+    if (r.error) return say(r.error);
+    x.pl = text;
+  }
+  const el = $("card");
+  el.style.transform = mode === "later" ? "translateY(-120%)" : `translateX(${yes ? 140 : -140}%) rotate(${yes ? 12 : -12}deg)`; el.style.opacity = "0";
+  c.done.push({ i: c.i, yes, mode, saved: save, before });
+  c.editing = false;
+  c.i++;
+  setTimeout(cardsShow, 160);
+}
+async function cardsUndo() {
+  const c = cards;
+  if (!c || c.busy || !c.done.length) return;
+  const d = c.done.pop();
+  const x = c.items[d.i];
+  if (d.saved) {
+    // put back what was there before (no text before = no translation)
+    const r = await post("/api/save", { id: x.id, pl: d.before.pl ?? "", status: d.before.status || "draft", everywhere: false });
+    if (r.error) return say(r.error);
+    if (c.kind !== "import") x.pl = d.before.pl;
+  }
+  c.i = d.i; c.editing = false; cardsShow();
+}
+function cardsClose() {
+  if (!cards) return;
+  const changed = cards.done.some((d) => d.saved);
+  cards = null;
+  $("cards").classList.add("hidden");
+  if (changed) { poll(); refreshLists(); if (page) loadPage(page.key, current); }
+}
+function cardsEdit() { if (cards && cards.i < cards.items.length) { cards.editing = true; cardsShow(); } }
+$("cards-yes").onclick = () => cardsDecide("yes");
+$("cards-no").onclick = () => cardsDecide("no");
+$("cards-later").onclick = () => cardsDecide("later");
+$("cards-undo").onclick = cardsUndo;
+$("cards-edit").onclick = cardsEdit;
+$("cards-close").onclick = cardsClose;
+document.addEventListener("keydown", (e) => {
+  if (!cards) return;
+  if (cards.editing) {
+    if (e.key === "Escape") { cards.editing = false; cardsShow(); e.preventDefault(); }
+    else if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { cardsDecide("yes"); e.preventDefault(); }
+    e.stopImmediatePropagation();
+    return;
+  }
+  const k = { ArrowRight: () => cardsDecide("yes"), ArrowLeft: () => cardsDecide("no"), ArrowUp: () => cardsDecide("later"), Backspace: cardsUndo, ArrowDown: cardsEdit, e: cardsEdit, Escape: cardsClose }[e.key];
+  if (k) { k(); e.preventDefault(); e.stopImmediatePropagation(); }
+}, true);
+// drag the card with the mouse or a finger
+(() => {
+  const el = $("card");
+  let x0 = null;
+  el.addEventListener("pointerdown", (e) => {
+    if (!cards || cards.editing || cards.i >= cards.items.length) return;
+    x0 = e.clientX; el.classList.add("drag"); el.setPointerCapture(e.pointerId);
+  });
+  el.addEventListener("pointermove", (e) => {
+    if (x0 == null) return;
+    const dx = e.clientX - x0;
+    el.style.transform = `translateX(${dx}px) rotate(${dx / 25}deg)`;
+    el.classList.toggle("yes", dx > 80); el.classList.toggle("no", dx < -80);
+  });
+  const end = (e) => {
+    if (x0 == null) return;
+    const dx = e.clientX - x0; x0 = null;
+    el.classList.remove("drag", "yes", "no");
+    if (dx > 120) cardsDecide("yes"); else if (dx < -120) cardsDecide("no"); else el.style.transform = "";
+  };
+  el.addEventListener("pointerup", end); el.addEventListener("pointercancel", end);
+})();
+$("cards-page").onclick = () => {
+  if (!page) return;
+  // what still waits for a decision: "to check" first, then drafts
+  const rows = page.rows.filter((x) => x.pl != null && x.pl !== "" && x.status !== "done");
+  rows.sort((a, b) => (a.status === "review" ? 0 : 1) - (b.status === "review" ? 0 : 1));
+  cardsOpen("page", page.title, rows.map((x) => ({ ...x })));
+};
+$("imp-cards").onclick = () => {
+  const usable = importItems.filter((x) => x.status === "nowa" || x.status === "zmiana" || x.status === "konflikt");
+  $("import").classList.add("hidden");
+  cardsOpen("import", "Poprawki z pliku", usable.map((x) => ({ ...x, curStatus: null })));
+};

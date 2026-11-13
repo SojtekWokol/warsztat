@@ -97,7 +97,8 @@
         <button id="load">Wczytaj</button>
         <button id="tag-audit" title="Pokaż wszystkie kwestie, w których znaczniki <…> albo kody {…} różnią się od oryginału">Sprawdź znaczniki</button>
         <span id="edit-title"></span>
-        <button id="approve-page" class="right" title="Zatwierdź wszystkie szkice na tej stronie (kwestie „do sprawdzenia” zostają, jak są)">Zatwierdź stronę</button>
+        <button id="cards-page" class="right" title="Kwestie tej strony po jednej: → zatwierdź, ← pomiń">Karty</button>
+        <button id="approve-page" title="Zatwierdź wszystkie szkice na tej stronie; kwestie „do sprawdzenia” po osobnym pytaniu (hasła zagadek zostają do sprawdzenia w grze)">Zatwierdź stronę</button>
         <button id="build" class="red">Wgraj do gry</button>
       </div>
       <div class="editor">
@@ -173,13 +174,28 @@
   </div>
   <div id="drawer-body"></div>
 </div>
+<div id="cards" class="hidden">
+  <div class="cards-top"><span id="cards-title"></span><span id="cards-count"></span><button id="cards-close">Zamknij (Esc)</button></div>
+  <div class="cards-stage">
+    <div class="card-hint left">← pomiń</div><div class="card-hint right">zatwierdź →</div>
+    <div id="card" class="swipe-card"></div>
+  </div>
+  <div class="cards-actions">
+    <button id="cards-no" title="Strzałka w lewo">✕ <span id="cards-no-label">Pomiń</span></button>
+    <button id="cards-later" title="Strzałka w górę: trafi do listy „do sprawdzenia”">↑ Do poprawy</button>
+    <button id="cards-undo" title="Backspace">↶ Cofnij</button>
+    <button id="cards-edit" title="Strzałka w dół albo E">✎ Popraw</button>
+    <button id="cards-yes" class="red" title="Strzałka w prawo">✓ <span id="cards-yes-label">Zatwierdź</span></button>
+  </div>
+  <p class="cards-keys">→ zatwierdź · ↑ do poprawy (lista „do sprawdzenia”) · ← odrzuć / pomiń · ↓ albo E poprawka (Ctrl+Enter zapisuje jako zatwierdzoną) · Backspace cofa · Esc zamyka</p>
+</div>
 <div id="import" class="hidden">
   <div class="setup-card import-card">
     <h2>Poprawki z pliku</h2>
     <p id="imp-head"></p>
     <div class="imp-tools"><label><input type="checkbox" id="imp-all"> zaznacz wszystkie zmiany i nowe</label><span id="imp-count" class="small"></span></div>
     <div id="imp-list"></div>
-    <div class="setup-actions"><button id="imp-cancel">Anuluj</button><button id="imp-accept" class="red">Przyjmij zaznaczone</button></div>
+    <div class="setup-actions"><label class="imp-done" title="Przeczytane tutaj i wybrane poprawki trafią od razu jako zatwierdzone, bez osobnego zatwierdzania każdej kwestii"><input type="checkbox" id="imp-done"> od razu zatwierdź</label><button id="imp-cards" title="Po jednej poprawce: → przyjmij jako zatwierdzoną, ← odrzuć">Przeglądaj kartami</button><button id="imp-cancel">Anuluj</button><button id="imp-accept" class="red">Przyjmij zaznaczone</button></div>
   </div>
 </div>
 <div id="building" class="hidden" role="alertdialog" aria-live="polite">
