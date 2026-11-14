@@ -66,7 +66,10 @@ fn main() -> Result<()> {
         Some("api") => {
             // the workshop API without the window, for testing: ea2 api <route> [json]
             let ws = warsztat::Workshop::open(&root, std::sync::Arc::new(ea2::workshop::Ea2::default()))?;
-            let d: serde_json::Value = serde_json::from_str(args.get(3).map(|s| s.as_str()).unwrap_or("{}"))?;
+            // the JSON inline, or @file for big payloads (the command line has a length limit)
+            let raw = args.get(3).map(|s| s.as_str()).unwrap_or("{}");
+            let raw = match raw.strip_prefix('@') { Some(p) => std::fs::read_to_string(p)?, None => raw.to_string() };
+            let d: serde_json::Value = serde_json::from_str(&raw)?;
             println!("{}", serde_json::to_string(&ws.api(&args[2], &d))?);
             Ok(())
         }
