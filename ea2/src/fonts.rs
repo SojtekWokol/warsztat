@@ -73,6 +73,15 @@ impl FontPatcher {
                 }
                 continue;
             };
+            if let Ok(spec) = std::env::var("EA2_GLYPHCMP") {
+                if let Some((f, c)) = spec.rsplit_once(':') {
+                    if f == name {
+                        if let Err(e) = self.compare(pack, reg, at, &v, file, c.chars().next().unwrap_or('S'), log) {
+                            log(format!("  cmp: {e}"));
+                        }
+                    }
+                }
+            }
             if self.inject(pack, reg, at, &mut v, &name, file, log)? {
                 pack.write_obj(reg, at, &v)?;
                 n += 1;
@@ -80,6 +89,43 @@ impl FontPatcher {
         }
         self.fix_material_heights(pack, reg, log)?;
         Ok(n)
+    }
+
+    /// Debug (EA2_GLYPHCMP="<font name>:<char>"): the game's own glyph next to ours, middle row and
+    /// how fast the distance field falls off at the edge, plus bold settings of the font asset.
+    fn compare(&mut self, pack: &Pack, reg: &TypeRegistry, at: At, v: &Value, file: &str, ch: char, log: &mut dyn FnMut(String)) -> Result<()> {
+        let pad = v.get("m_AtlasPadding").and_then(|x| x.i64()).unwrap_or(9) as usize;
+        let pt = v.at("m_FaceInfo.m_PointSize").and_then(|x| x.f64()).unwrap_or(0.0);
+        log(format!("  cmp: pad {pad} pt {pt} boldStyle {:?} normalStyle {:?} boldSpacing {:?}",
+            v.get("m_BoldStyle").and_then(|x| x.f64()), v.get("m_NormalStyle").and_then(|x| x.f64()), v.get("m_BoldSpacing").and_then(|x| x.f64())));
+        let idx = v.get("m_CharacterTable").and_then(|t| t.array()).and_then(|a| a.iter().find(|c| c.get("m_Unicode").and_then(|x| x.i64()) == Some(ch as i64))).and_then(|c| c.get("m_GlyphIndex")?.i64()).ok_or_else(|| anyhow!("no char"))?;
+        let g = v.get("m_GlyphTable").and_then(|t| t.array()).and_then(|a| a.iter().find(|g| g.get("m_Index").and_then(|x| x.i64()) == Some(idx)).cloned()).ok_or_else(|| anyhow!("no glyph"))?;
+        let r = |k: &str| g.at(&format!("m_GlyphRect.{k}")).and_then(|x| x.i64()).unwrap_or(0) as usize;
+        let (gx, gy, gw, gh) = (r("m_X"), r("m_Y"), r("m_Width"), r("m_Height"));
+        let tex_ptr = v.get("m_AtlasTextures").and_then(|a| a.array()).and_then(|a| a.first()).cloned().ok_or_else(|| anyhow!("no atlas"))?;
+        let tex_at = pack.resolve(at.file, &tex_ptr).ok_or_else(|| anyhow!("atlas not found"))?;
+        let tex = pack.read_obj(reg, tex_at)?;
+        let w = tex.get("m_Width").and_then(|x| x.i64()).unwrap_or(0) as usize;
+        let h = tex.get("m_Height").and_then(|x| x.i64()).unwrap_or(0) as usize;
+        let raw = atlas_bytes(pack, &tex, w * h)?;
+        // game glyph incl. padding, top-down; texture rows are bottom-up, rect y from the bottom
+        let (cw, chh) = (gw + 2 * pad, gh + 2 * pad);
+        let mut game = vec![0u8; cw * chh];
+        for y in 0..chh {
+            let ty = gy + gh + pad - 1 - y; // texture row (bottom-up) for top-down row y
+            for x in 0..cw {
+                let tx = gx + x - pad;
+                if ty < h && tx < w {
+                    game[y * cw + x] = raw[ty * w + tx];
+                }
+            }
+        }
+        let ours = self.glyph(file, ch, pt, pad)?;
+        log(format!("  cmp: game {}x{} ours {}x{}", cw, chh, ours.w, ours.h));
+        let row = |p: &[u8], w: usize, h: usize| p[(h / 2) * w..(h / 2) * w + w].iter().map(|b| format!("{b:3}")).collect::<Vec<_>>().join(" ");
+        log(format!("  cmp game: {}", row(&game, cw, chh)));
+        log(format!("  cmp ours: {}", row(&ours.pixels, ours.w, ours.h)));
+        Ok(())
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -115,8 +161,38 @@ impl FontPatcher {
         for &ch in &todo {
             let g = self.glyph(file, ch, pt, pad)?;
             let (gw_, gh_) = (g.w, g.h);
-            let pixels = g.pixels.clone();
-            let met = g.met.clone();
+            let mut pixels = g.pixels.clone();
+            let mut met = g.met.clone();
+            // our source font can be a newer version than the one the game's atlas came from (Urbanist's
+            // S differs): lay the game's own base letter over ours, so only the diacritic is new
+            if let Some((bc, b)) = base_letter(ch).and_then(|bc| game_glyph(v, &alpha, w, hgt, bc, pad).map(|b| (bc, b))) {
+                // our own base letter, to cut it out of our glyph: diacritic = ours AND NOT our base
+                // (distance fields: min(a, 255-b)); then union with the game's base: max
+                let ob = self.glyph(file, bc, pt, pad)?;
+                let (obw, obh, obp) = (ob.w, ob.h, ob.pixels.clone());
+                let odx = (ob.met.bearing_x - met.bearing_x).round() as i64;
+                let ody = (met.bearing_y - ob.met.bearing_y).round() as i64;
+                let gdx = (b.bx - met.bearing_x).round() as i64;
+                let gdy = (met.bearing_y - b.by).round() as i64;
+                let at = |px: &[u8], pw: usize, ph: usize, dx: i64, dy: i64, x: usize, y: usize| -> u8 {
+                    let (sx, sy) = (x as i64 - dx, y as i64 - dy);
+                    if sx >= 0 && sy >= 0 && (sx as usize) < pw && (sy as usize) < ph { px[sy as usize * pw + sx as usize] } else { 0 }
+                };
+                for y in 0..gh_ {
+                    for x in 0..gw_ {
+                        let i = y * gw_ + x;
+                        let mark = pixels[i].min(255 - at(&obp, obw, obh, odx, ody, x, y));
+                        pixels[i] = mark.max(at(&b.pixels, b.w, b.h, gdx, gdy, x, y));
+                    }
+                }
+                met.advance = met.advance.max(b.advance);
+            }
+            if let Ok(dir) = std::env::var("EA2_DUMPGLYPH") {
+                // debug: the finished glyph as a PGM image
+                let mut img = format!("P5 {gw_} {gh_} 255\n").into_bytes();
+                img.extend_from_slice(&pixels);
+                let _ = std::fs::write(Path::new(&dir).join(format!("{}_{:04X}.pgm", name.replace(' ', "_"), ch as u32)), img);
+            }
             let spot = match find_empty_spot(&occ, w, hgt, gw_, gh_, 4) {
                 Some(s) => s,
                 None => {
@@ -201,6 +277,45 @@ impl FontPatcher {
         log(format!("  materials with atlas height fixed: {n}"));
         Ok(())
     }
+}
+
+/// The Latin letter a Polish letter is built on.
+fn base_letter(ch: char) -> Option<char> {
+    let (pl, base) = ("ąćęłńśźżĄĆĘŁŃŚŹŻ", "acelnszzACELNSZZ");
+    pl.chars().position(|c| c == ch).and_then(|i| base.chars().nth(i))
+}
+
+struct GameGlyph {
+    pixels: Vec<u8>,
+    w: usize,
+    h: usize,
+    bx: f64,
+    by: f64,
+    advance: f64,
+}
+
+/// A glyph already in the font asset, cut from the (top-down) atlas with its padding.
+fn game_glyph(font: &Value, alpha: &[u8], aw: usize, ah: usize, ch: char, pad: usize) -> Option<GameGlyph> {
+    let idx = font.get("m_CharacterTable")?.array()?.iter().find(|c| c.get("m_Unicode").and_then(|x| x.i64()) == Some(ch as i64))?.get("m_GlyphIndex")?.i64()?;
+    let g = font.get("m_GlyphTable")?.array()?.iter().find(|g| g.get("m_Index").and_then(|x| x.i64()) == Some(idx))?;
+    let r = |k: &str| g.at(&format!("m_GlyphRect.{k}")).and_then(|x| x.i64()).unwrap_or(0) as usize;
+    let m = |k: &str| g.at(&format!("m_Metrics.{k}")).and_then(|x| x.f64()).unwrap_or(0.0);
+    let (gx, gy, gw, gh) = (r("m_X"), r("m_Y"), r("m_Width"), r("m_Height"));
+    if gw == 0 || gh == 0 || gy + gh > ah || gx + gw > aw {
+        return None;
+    }
+    let (w, h) = (gw + 2 * pad, gh + 2 * pad);
+    let top = ah - (gy + gh); // top-down row of the rect's top
+    let mut pixels = vec![0u8; w * h];
+    for y in 0..h {
+        for x in 0..w {
+            let (sx, sy) = (gx as i64 + x as i64 - pad as i64, top as i64 + y as i64 - pad as i64);
+            if sx >= 0 && sy >= 0 && (sx as usize) < aw && (sy as usize) < ah {
+                pixels[y * w + x] = alpha[sy as usize * aw + sx as usize];
+            }
+        }
+    }
+    Some(GameGlyph { pixels, w, h, bx: m("m_HorizontalBearingX"), by: m("m_HorizontalBearingY"), advance: m("m_HorizontalAdvance") })
 }
 
 fn atlas_bytes(pack: &Pack, tex: &Value, need: usize) -> Result<Vec<u8>> {
