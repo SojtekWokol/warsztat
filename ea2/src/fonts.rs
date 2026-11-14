@@ -178,6 +178,21 @@ impl FontPatcher {
                     let (sx, sy) = (x as i64 - dx, y as i64 - dy);
                     if sx >= 0 && sy >= 0 && (sx as usize) < pw && (sy as usize) < ph { px[sy as usize * pw + sx as usize] } else { 0 }
                 };
+                // only where the game's base letter really differs from ours (Urbanist's S): elsewhere the
+                // cut-and-join leaves a seam where the mark touches the letter (ł, ę), so keep our glyph
+                let (mut differ, mut ink) = (0usize, 0usize);
+                for y in 0..gh_ {
+                    for x in 0..gw_ {
+                        let (a, g) = (at(&obp, obw, obh, odx, ody, x, y) >= 128, at(&b.pixels, b.w, b.h, gdx, gdy, x, y) >= 128);
+                        ink += (a || g) as usize;
+                        differ += (a != g) as usize;
+                    }
+                }
+                // measured: only Urbanist's capital S has another shape in the game (22-29% differ); other
+                // letters differ by a pixel of rounding, where joining would just double the edges
+                if ink == 0 || !REDRAWN_BASES.iter().any(|&(f, c)| name.starts_with(f) && c == bc) {
+                    // same letter shape: nothing to fix
+                } else {
                 for y in 0..gh_ {
                     for x in 0..gw_ {
                         let i = y * gw_ + x;
@@ -186,6 +201,8 @@ impl FontPatcher {
                     }
                 }
                 met.advance = met.advance.max(b.advance);
+                log(format!("  {name}: {ch} built on the game's own {bc} ({}% of the letter differs)", differ * 100 / ink));
+                }
             }
             if let Ok(dir) = std::env::var("EA2_DUMPGLYPH") {
                 // debug: the finished glyph as a PGM image
@@ -278,6 +295,10 @@ impl FontPatcher {
         Ok(())
     }
 }
+
+/// Base letters whose shape in the game's atlas differs from our source font (font name prefix, letter):
+/// Polish letters on them take the game's own base letter and only our diacritic.
+const REDRAWN_BASES: &[(&str, char)] = &[("Urbanist", 'S')];
 
 /// The Latin letter a Polish letter is built on.
 fn base_letter(ch: char) -> Option<char> {
