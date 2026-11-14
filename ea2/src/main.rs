@@ -75,6 +75,43 @@ fn main() -> Result<()> {
             std::fs::write(&args[3], csv::write(&csv::parse(&t)))?;
             Ok(())
         }
+        Some("fontscan") => {
+            // every "<name> SDF" font asset name in the game's bundles and main file (original copies)
+            let mut seen: std::collections::BTreeMap<String, std::collections::BTreeSet<String>> = Default::default();
+            let mut scan = |label: String, data: &[u8]| {
+                let mut i = 0;
+                while let Some(p) = data[i..].windows(4).position(|w| w == b" SDF") {
+                    let end = i + p;
+                    let mut s = end;
+                    while s > 0 && end - s < 48 && (data[s - 1].is_ascii_alphanumeric() || b"-_ ".contains(&data[s - 1])) {
+                        s -= 1;
+                    }
+                    if end - s >= 3 {
+                        seen.entry(String::from_utf8_lossy(&data[s..end + 4]).trim().to_string()).or_default().insert(label.clone());
+                    }
+                    i = end + 4;
+                }
+            };
+            for b in game.bundle("") {
+                let src = ea2::originals::clean_copy(&b, &backup).unwrap_or(b.clone());
+                if let Ok(u) = std::fs::read(&src).map_err(anyhow::Error::from).and_then(|x| unity::Bundle::read(&x)) {
+                    let name = b.file_name().unwrap().to_string_lossy().chars().take(30).collect::<String>();
+                    for n in &u.nodes {
+                        scan(name.clone(), &n.data);
+                    }
+                }
+            }
+            let main = ea2::originals::clean_copy(&game.main_file(), &backup).unwrap_or(game.main_file());
+            if let Ok(u) = std::fs::read(&main).map_err(anyhow::Error::from).and_then(|x| unity::Bundle::read(&x)) {
+                for n in &u.nodes {
+                    scan("data.unity3d".into(), &n.data);
+                }
+            }
+            for (k, v) in &seen {
+                println!("{k}  {:?}", v);
+            }
+            Ok(())
+        }
         Some("glyph") => {
             let font = std::fs::read(&args[2])?;
             let ch = args[3].chars().next().unwrap();

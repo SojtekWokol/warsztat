@@ -64,7 +64,15 @@ impl FontPatcher {
         for at in fonts {
             let mut v = pack.read_obj(reg, at)?;
             let name = v.get("m_Name").and_then(|x| x.str()).unwrap_or("").to_string();
-            let Some(&(_, file)) = SOURCES.iter().find(|s| s.0 == name) else { continue };
+            let Some(&(_, file)) = SOURCES.iter().find(|s| s.0 == name) else {
+                // a font we have no source for: say if it lacks Polish letters (they would come from a fallback font)
+                let have: Vec<i64> = v.get("m_CharacterTable").and_then(|t| t.array()).map(|a| a.iter().filter_map(|c| c.get("m_Unicode")?.i64()).collect()).unwrap_or_default();
+                let missing = POLISH.chars().filter(|c| !have.contains(&(*c as i64))).count();
+                if missing > 0 && have.len() > 0 && have.len() < 2000 {
+                    log(format!("  {name}: bez źródła, brak {missing} polskich liter ({} znaków w foncie)", have.len()));
+                }
+                continue;
+            };
             if self.inject(pack, reg, at, &mut v, &name, file, log)? {
                 pack.write_obj(reg, at, &v)?;
                 n += 1;
