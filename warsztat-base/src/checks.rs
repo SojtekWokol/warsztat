@@ -107,6 +107,12 @@ pub fn tag_problems(en: &str, pl: &str) -> Vec<String> {
     probs
 }
 
+/// 1st person past/conditional forms that show gender: zrobiłem, zrobiłam, zrobiłbym, zrobiłabym.
+pub fn first_person_gender(pl: &str) -> bool {
+    static FP: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+    FP.get_or_init(|| regex::Regex::new(r"(?i)[aeiouyąęó]ł(em|am|bym|abym)\b|\b(by|żeby|aby|gdyby|jakby)m\b[^.!?]{0,40}?[aeiouyąęó]ła?\b").unwrap()).is_match(pl)
+}
+
 pub fn check(en: &str, pl: &str) -> Vec<String> {
     let mut probs = Vec::new();
     if pl.trim().is_empty() {

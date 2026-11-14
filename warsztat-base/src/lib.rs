@@ -87,6 +87,11 @@ pub trait Game: Send + Sync {
     fn extra_checks(&self, _en: &str, _pl: &str) -> Vec<String> {
         vec![]
     }
+    /// Speakers whose own lines must not show grammatical gender (besides the player, whose lines have
+    /// an empty speaker): the check warns about 1st person forms like -łem/-łam in their lines.
+    fn neutral_speakers(&self) -> Vec<String> {
+        vec![]
+    }
     /// Write the translation into the game.
     fn build(&self, root: &Path, log: &mut dyn FnMut(String)) -> Result<()>;
     /// Start the game.
@@ -288,6 +293,13 @@ impl Workshop {
             "check" => {
                 // with an id: tag differences accepted for this text (and still the same tags) are not problems
                 let mut p = self.check(s(d, "en"), s(d, "pl"));
+                if let Some(e) = self.by_id.get(s(d, "id")).map(|&i| &self.entries[i]) {
+                    let sp = e.speaker.as_deref().unwrap_or("");
+                    let player = e.speaker.as_deref() == Some("");
+                    if (player || self.game.neutral_speakers().iter().any(|n| n == sp)) && checks::first_person_gender(s(d, "pl")) {
+                        p.push(format!("forma z rodzajem w 1. osobie – {} mówi bez rodzaju", if player { "gracz" } else { sp }));
+                    }
+                }
                 let has_tag = p.iter().any(|x| x.starts_with("znaczniki:"));
                 let accepted = has_tag && !s(d, "id").is_empty() && self.store.lock().unwrap().tags_accepted(s(d, "id"), s(d, "pl"));
                 if accepted {
