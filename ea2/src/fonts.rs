@@ -18,6 +18,8 @@ pub const SOURCES: &[(&str, &str)] = &[
     ("Kalam-Bold SDF", "Kalam-Bold.ttf"),
     ("knewave SDF", "Knewave-PL.ttf"),
     ("Jersey10-Regular SDF", "Jersey10-Regular.ttf"),
+    // Japanese UD font used on a few signs: its own font file ships inside the game and has Polish letters
+    ("BizUDMincho_Regular", "game:BIZUDMincho-Regular"),
 ];
 
 pub struct FontPatcher {
@@ -54,21 +56,53 @@ impl FontPatcher {
     /// Patch every known font asset in the pack. Returns how many were changed.
     pub fn patch_pack(&mut self, pack: &mut Pack, reg: &TypeRegistry, log: &mut dyn FnMut(String)) -> Result<usize> {
         self.grown.clear();
+        // sources taken from the game's own Font objects (class 128, m_FontData)
+        for &(_, file) in SOURCES {
+            let Some(fname) = file.strip_prefix("game:") else { continue };
+            if self.files.contains_key(file) {
+                continue;
+            }
+            for at in pack.all().filter(|&a| pack.class(a) == 128) {
+                let Ok(f) = pack.read_obj(reg, at) else { continue };
+                if f.get("m_Name").and_then(|x| x.str()) != Some(fname) {
+                    continue;
+                }
+                let data: Vec<u8> = match f.get("m_FontData") {
+                    Some(Value::Bytes(b)) => b.clone(),
+                    Some(v) => v.array().map(|a| a.iter().filter_map(|x| x.i64()).map(|x| x as u8).collect()).unwrap_or_default(),
+                    None => vec![],
+                };
+                if !data.is_empty() {
+                    self.files.insert(file.to_string(), data);
+                }
+            }
+        }
         let mut n = 0;
         let fonts: Vec<At> = pack
             .all()
             .filter(|&at| pack.class(at) == 114)
-            .filter(|&at| pack.sf(at.file).objects[at.obj].data.get(..120).map_or(false, |d| d.windows(4).any(|w| w == b" SDF")))
+            .filter(|&at| {
+                std::env::var("EA2_ALLFONTS").is_ok()
+                    || pack.sf(at.file).objects[at.obj].data.get(..120).map_or(false, |d| d.windows(4).any(|w| w == b" SDF") || SOURCES.iter().any(|s| d.windows(s.0.len()).any(|w| w == s.0.as_bytes())))
+            })
             .filter(|&at| pack.tree(reg, at).map_or(false, |t| t.child("m_GlyphTable").is_some()))
             .collect();
         for at in fonts {
             let mut v = pack.read_obj(reg, at)?;
             let name = v.get("m_Name").and_then(|x| x.str()).unwrap_or("").to_string();
+            if let Some(&(_, f)) = SOURCES.iter().find(|s| s.0 == name) {
+                if f.starts_with("game:") && !self.files.contains_key(f) {
+                    log(format!("  {name}: no font file in the game, skipped"));
+                    continue;
+                }
+            }
             let Some(&(_, file)) = SOURCES.iter().find(|s| s.0 == name) else {
                 // a font we have no source for: say if it lacks Polish letters (they would come from a fallback font)
                 let have: Vec<i64> = v.get("m_CharacterTable").and_then(|t| t.array()).map(|a| a.iter().filter_map(|c| c.get("m_Unicode")?.i64()).collect()).unwrap_or_default();
                 let missing = POLISH.chars().filter(|c| !have.contains(&(*c as i64))).count();
-                if missing > 0 && have.len() > 0 && have.len() < 2000 {
+                if std::env::var("EA2_ALLFONTS").is_ok() {
+                    log(format!("  font asset: {name} ({} znaków, brak {missing} polskich)", have.len()));
+                } else if missing > 0 && have.len() > 0 && have.len() < 2000 {
                     log(format!("  {name}: bez źródła, brak {missing} polskich liter ({} znaków w foncie)", have.len()));
                 }
                 continue;
@@ -160,7 +194,7 @@ impl FontPatcher {
         let mut grown = false;
         for &ch in &todo {
             let g = self.glyph(file, ch, pt, pad)?;
-            let (gw_, gh_) = (g.w, g.h);
+            let (mut gw_, mut gh_) = (g.w, g.h);
             let mut pixels = g.pixels.clone();
             let mut met = g.met.clone();
             // our source font can be a newer version than the one the game's atlas came from (Urbanist's
@@ -193,13 +227,29 @@ impl FontPatcher {
                 if ink == 0 || !REDRAWN_BASES.iter().any(|&(f, c)| name.starts_with(f) && c == bc) {
                     // same letter shape: nothing to fix
                 } else {
-                for y in 0..gh_ {
-                    for x in 0..gw_ {
-                        let i = y * gw_ + x;
-                        let mark = pixels[i].min(255 - at(&obp, obw, obh, odx, ody, x, y));
-                        pixels[i] = mark.max(at(&b.pixels, b.w, b.h, gdx, gdy, x, y));
+                // the game's letter can be wider than ours: grow the canvas to hold both, else the glyph
+                // rect would cut it off
+                let (x0, y0) = (gdx.min(0), gdy.min(0));
+                let (x1, y1) = ((gdx + b.w as i64).max(gw_ as i64), (gdy + b.h as i64).max(gh_ as i64));
+                let (nw, nh) = ((x1 - x0) as usize, (y1 - y0) as usize);
+                let mut np = vec![0u8; nw * nh];
+                for y in 0..nh {
+                    for x in 0..nw {
+                        let (cx_, cy_) = (x as i64 + x0, y as i64 + y0); // position in our old canvas
+                        let ours = if cx_ >= 0 && cy_ >= 0 && (cx_ as usize) < gw_ && (cy_ as usize) < gh_ { pixels[cy_ as usize * gw_ + cx_ as usize] } else { 0 };
+                        let (ux, uy) = (cx_.max(0) as usize, cy_.max(0) as usize);
+                        let ob_v = if cx_ >= 0 && cy_ >= 0 { at(&obp, obw, obh, odx, ody, ux, uy) } else { 0 };
+                        let gv = { let (sx, sy) = (cx_ - gdx, cy_ - gdy); if sx >= 0 && sy >= 0 && (sx as usize) < b.w && (sy as usize) < b.h { b.pixels[sy as usize * b.w + sx as usize] } else { 0 } };
+                        np[y * nw + x] = ours.min(255 - ob_v).max(gv);
                     }
                 }
+                pixels = np;
+                met.bearing_x += x0 as f64;
+                met.bearing_y -= y0 as f64;
+                met.width = (nw - 2 * pad) as f64;
+                met.height = (nh - 2 * pad) as f64;
+                gw_ = nw;
+                gh_ = nh;
                 met.advance = met.advance.max(b.advance);
                 log(format!("  {name}: {ch} built on the game's own {bc} ({}% of the letter differs)", differ * 100 / ink));
                 }

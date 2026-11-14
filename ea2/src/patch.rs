@@ -197,6 +197,55 @@ pub fn run(o: Options, log: &mut dyn FnMut(String)) -> Result<()> {
         let main_orig = orig(o.originals, &g.main_file())?;
         Pack::read(&std::fs::read(&main_orig)?).context("data.unity3d")?
     };
+    if let Ok(dir) = std::env::var("EA2_DUMPFONTS") {
+        // debug: the font files embedded in Font objects (class 128)
+        for at in main.all().filter(|&a| main.class(a) == 128) {
+            let Ok(f) = main.read_obj(&reg, at) else { continue };
+            let name = f.get("m_Name").and_then(|x| x.str()).unwrap_or("font").to_string();
+            let data: Vec<u8> = match f.get("m_FontData") {
+                Some(Value::Bytes(b)) => b.clone(),
+                Some(v) => v.array().map(|a| a.iter().filter_map(|x| x.i64()).map(|x| x as u8).collect()).unwrap_or_default(),
+                None => vec![],
+            };
+            log(format!("  fontfile: {name} {} bytes", data.len()));
+            if !data.is_empty() {
+                let _ = std::fs::write(Path::new(&dir).join(format!("{name}.ttf")), &data);
+            }
+        }
+    }
+    if std::env::var("EA2_TMPSCAN").is_ok() {
+        // debug: every TextMeshPro component in the main file: font asset, and the text (or its key)
+        let mut names: HashMap<(usize, i64), String> = HashMap::new();
+        for at in main.all().filter(|&a| main.class(a) == 114) {
+            let Ok(t) = main.read_obj(&reg, at) else { continue };
+            let Some(fp) = t.get("m_fontAsset") else { continue };
+            let Some(fa) = main.resolve(at.file, fp) else { continue };
+            let key = (fa.file, fa.obj as i64);
+            let font = names.entry(key).or_insert_with(|| main.read_obj(&reg, fa).ok().and_then(|f| f.get("m_Name").and_then(|x| x.str()).map(String::from)).unwrap_or_default()).clone();
+            let text = t.get("m_text").and_then(|x| x.str()).unwrap_or("").replace('\n', " ");
+            log(format!("  tmp|{font}|{}", text.chars().take(80).collect::<String>()));
+        }
+    }
+    if let Ok(needle) = std::env::var("EA2_FINDTEXT") {
+        // debug: components whose data mentions the text, and the TextMeshPro settings on their object
+        let hits: Vec<crate::pack::At> = main.all().filter(|&at| main.class(at) == 114 && main.sf(at.file).objects[at.obj].data.windows(needle.len()).any(|w| w == needle.as_bytes())).collect();
+        for at in hits {
+            let Ok(v) = main.read_obj(&reg, at) else { continue };
+            let go = v.get("m_GameObject").cloned();
+            log(format!("  find: hit in file {} obj {} go {:?}", at.file, at.obj, go.as_ref().and_then(|g| g.get("m_PathID")).and_then(|x| x.i64())));
+            // every TMP component on the same game object
+            for at2 in main.all().filter(|&a| a.file == at.file && main.class(a) == 114) {
+                let Ok(t) = main.read_obj(&reg, at2) else { continue };
+                if t.get("m_fontAsset").is_none() || t.get("m_GameObject").and_then(|g| g.get("m_PathID")).and_then(|x| x.i64()) != go.as_ref().and_then(|g| g.get("m_PathID")).and_then(|x| x.i64()) {
+                    continue;
+                }
+                let font = t.get("m_fontAsset").and_then(|p| main.resolve(at2.file, p)).and_then(|a| main.read_obj(&reg, a).ok()).and_then(|f| f.get("m_Name").and_then(|x| x.str()).map(String::from));
+                let mat = t.get("m_sharedMaterial").and_then(|p| main.resolve(at2.file, p)).and_then(|a| main.read_obj(&reg, a).ok()).and_then(|f| f.get("m_Name").and_then(|x| x.str()).map(String::from));
+                log(format!("  find: TMP font {:?} material {:?} style {:?} weight {:?} text {:?}", font, mat,
+                    t.get("m_fontStyle").and_then(|x| x.i64()), t.get("m_fontWeight").and_then(|x| x.i64()), t.get("m_text").and_then(|x| x.str()).map(|s| s.chars().take(60).collect::<String>())));
+            }
+        }
+    }
     let text_assets: Vec<_> = main.all().filter(|&at| main.class(at) == 49).collect();
     let mut gameplay_at = None;
     for &at in &text_assets {
@@ -231,7 +280,15 @@ pub fn run(o: Options, log: &mut dyn FnMut(String)) -> Result<()> {
     for b in &font_b {
         let orig = &originals_of[b];
         let mut p = Pack::read(&std::fs::read(orig)?)?;
-        let n = fp.patch_pack(&mut p, &reg, &mut |_| {})?;
+        let bname = b.file_name().map(|x| x.to_string_lossy().chars().take(40).collect::<String>()).unwrap_or_default();
+        let mut sub: Vec<String> = vec![];
+        let n = fp.patch_pack(&mut p, &reg, &mut |m| sub.push(m))?;
+        if std::env::var("EA2_FONTLOG").is_ok() {
+            log(format!("  {bname}: {n} font(s)"));
+            for m in sub {
+                log(format!("    {m}"));
+            }
+        }
         if n == 0 {
             continue; // no font asset of ours (or already complete): leave the bundle as it is
         }
@@ -309,6 +366,7 @@ pub fn run(o: Options, log: &mut dyn FnMut(String)) -> Result<()> {
         }
     }
     let n_font = fp.patch_pack(&mut main, &reg, log)?;
+    swap_fonts_without_polish(&mut main, &reg, log)?;
     let yarn_res = yarn::patch_pack(&mut main, &reg, o.store, &speakers)?;
     log(format!("GameplayStrings: {n_gp} Polish texts; LocalizationManagers: {n_lm}; fonts: {n_font}; yarn projects: {}", yarn_res.len()));
     for r in &yarn_res {
@@ -370,5 +428,61 @@ pub fn run(o: Options, log: &mut dyn FnMut(String)) -> Result<()> {
         }
     }
     log(format!("written: {} file(s) of game data", main_out.len()));
+    Ok(())
+}
+
+/// Texts shown in a font that has no Polish letters and no font file to add them from (Source Han Sans
+/// Heavy on the theatre poster): their TextMeshPro components switch to Urbanist-Bold, the game's main
+/// font, taking the font and default material references from another component in the same file.
+fn swap_fonts_without_polish(main: &mut Pack, reg: &TypeRegistry, log: &mut dyn FnMut(String)) -> Result<()> {
+    const SWAP: &[(&str, &[&str])] = &[("Source_Han_Sans_CN_Heavy_SDF", &["@GUN_RoomName", "@GUN_SubtitleName"])];
+    const TO_FONT: &str = "Urbanist-Bold SDF";
+    const TO_MATERIAL: &str = "Urbanist-Bold SDF Material";
+    let name_of = |main: &Pack, from: usize, p: Option<&Value>| -> Option<String> {
+        p.and_then(|p| main.resolve(from, p)).and_then(|a| main.read_obj(reg, a).ok()).and_then(|f| f.get("m_Name").and_then(|x| x.str()).map(String::from))
+    };
+    let tmps: Vec<crate::pack::At> = main.all().filter(|&a| main.class(a) == 114).collect();
+    let mut n = 0;
+    for &at in &tmps {
+        let Ok(mut t) = main.read_obj(reg, at) else { continue };
+        if t.get("m_fontAsset").is_none() {
+            continue;
+        }
+        let text = t.get("m_text").and_then(|x| x.str()).unwrap_or("").to_string();
+        let font = name_of(main, at.file, t.get("m_fontAsset")).unwrap_or_default();
+        if !SWAP.iter().any(|(f, keys)| *f == font && keys.contains(&text.as_str())) {
+            continue;
+        }
+        // a component in the same file already pointing at Urbanist-Bold with its default material
+        let mut cands: Vec<(String, Option<Value>, Option<Value>)> = vec![];
+        for &a in tmps.iter().filter(|a| a.file == at.file) {
+            let Ok(d) = main.read_obj(reg, a) else { continue };
+            if name_of(main, a.file, d.get("m_fontAsset")).as_deref() == Some(TO_FONT) {
+                let mn = name_of(main, a.file, d.get("m_sharedMaterial")).unwrap_or_default();
+                cands.push((mn, d.get("m_fontAsset").cloned(), d.get("m_sharedMaterial").cloned()));
+            }
+        }
+        // the default material first, then the plainest Urbanist-Bold one (shortest name)
+        cands.sort_by_key(|c| (c.0 != TO_MATERIAL, c.0.len()));
+        if std::env::var("EA2_FONTLOG").is_ok() {
+            let mut names: Vec<&str> = cands.iter().map(|c| c.0.as_str()).collect();
+            names.dedup();
+            log(format!("  {text}: materials available {names:?}"));
+        }
+        let donor = cands.into_iter().next().map(|c| (c.1, c.2));
+        let Some((Some(f), Some(m))) = donor else {
+            log(format!("  {text}: no Urbanist-Bold reference in this file, font left as it is"));
+            continue;
+        };
+        *t.get_mut("m_fontAsset").unwrap() = f;
+        if let Some(x) = t.get_mut("m_sharedMaterial") {
+            *x = m;
+        }
+        main.write_obj(reg, at, &t)?;
+        n += 1;
+    }
+    if n > 0 {
+        log(format!("Texts switched to {TO_FONT} (font without Polish letters): {n}"));
+    }
     Ok(())
 }
