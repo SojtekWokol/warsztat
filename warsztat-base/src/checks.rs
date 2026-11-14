@@ -126,6 +126,10 @@ pub fn check(en: &str, pl: &str) -> Vec<String> {
     if pl.contains("  ") {
         probs.push("podwójna spacja".into());
     }
+    if pl.contains("<i>I</i>") || pl.contains("<i>l</i>") {
+        // in slanted sans fonts a lone capital I (or l) reads like a slash
+        probs.push("samotne pochylone „I” wygląda w grze jak „/” – pochyl dłuższy fragment".into());
+    }
     if re(&GENDER, r"(?i)\w(łeś|łaś|łabyś|łbyś)").is_match(pl) {
         probs.push("forma z rodzajem w 2. osobie – jeśli to do gracza, przerób na neutralną".into());
     }
