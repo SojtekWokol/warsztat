@@ -139,8 +139,8 @@ fn speakers(es: &[&Entry]) -> Vec<String> {
 
 impl Game for Ea2 {
     fn neutral_speakers(&self) -> Vec<String> {
-        // Reed Wright is non-binary (developers' note)
-        vec!["Reed Wright".into()]
+        // Reed Wright is non-binary (developers' note); Pac Teevist is "they" in Kelly Flick's lines
+        vec!["Reed Wright".into(), "Pac Teevist".into()]
     }
     fn name(&self) -> &str {
         "Escape Academy 2"
