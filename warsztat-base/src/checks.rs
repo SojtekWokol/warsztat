@@ -130,7 +130,8 @@ pub fn check(en: &str, pl: &str) -> Vec<String> {
         // in slanted sans fonts a lone capital I (or l) reads like a slash
         probs.push("samotne pochylone „I” wygląda w grze jak „/” – pochyl dłuższy fragment".into());
     }
-    if re(&GENDER, r"(?i)\w(łeś|łaś|łabyś|łbyś)").is_match(pl) {
+    // word end required: "właściwie", "własny" are not past-tense forms
+    if re(&GENDER, r"(?i)\w(łeś|łaś|łabyś|łbyś)\b").is_match(pl) {
         probs.push("forma z rodzajem w 2. osobie – jeśli to do gracza, przerób na neutralną".into());
     }
     if re(&LETTERS_EN, r"^[A-Z0-9](,[A-Z0-9])+$").is_match(en.trim()) {
