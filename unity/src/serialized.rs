@@ -1,4 +1,4 @@
-//! Unity serialized files (format 22, Unity 6): the type table, the object table and object data.
+//! Unity serialized files (format 22: Unity 2020.1+ incl. 2020.3 and Unity 6): the type table, the object table and object data.
 //! Only the object table is rebuilt on write; the type table and everything after the objects
 //! (scripts, externals, ref types) are kept as the original bytes.
 use crate::io::{Reader, Writer};
@@ -39,6 +39,17 @@ pub struct SerializedFile {
     meta_prefix: Vec<u8>,
     meta_suffix: Vec<u8>,
     orig_data_offset: u64,
+    /// Alignment of object data on write: 16 for Unity 6, else as in the original (8 in Unity 2020.3).
+    obj_align: u64,
+}
+
+/// An element count; rejects values that cannot fit in the remaining bytes (garbage input).
+fn count(r: &mut Reader) -> Result<usize> {
+    let n = r.i32()?;
+    if n < 0 || n as usize > r.data.len() - r.pos {
+        bail!("bad element count {n} at {}", r.pos - 4);
+    }
+    Ok(n as usize)
 }
 
 fn read_type(r: &mut Reader, version: u32, tt: bool, is_ref: bool) -> Result<SType> {
@@ -70,13 +81,16 @@ fn read_type(r: &mut Reader, version: u32, tt: bool, is_ref: bool) -> Result<STy
 
 impl SerializedFile {
     pub fn read(file: &[u8]) -> Result<SerializedFile> {
+        if file.len() < 48 {
+            bail!("too short for a serialized file");
+        }
         let mut r = Reader::new(file, true);
         r.u32()?;
         r.u32()?;
         let version = r.u32()?;
         r.u32()?;
-        if version < 22 {
-            bail!("serialized file format {version} not supported (need 22+)");
+        if !(22..=64).contains(&version) {
+            bail!("serialized file format {version} not supported (need 22+; not a serialized file?)");
         }
         let big_endian = r.u8()? != 0;
         r.take(3)?;
@@ -85,17 +99,20 @@ impl SerializedFile {
         let data_offset = r.i64()? as u64;
         let header_tail: [u8; 8] = r.take(8)?.try_into().unwrap();
         let meta_start = r.pos;
+        if meta_start + meta_size > file.len() || data_offset as usize > file.len() {
+            bail!("metadata or data offset past the end of the file (not a serialized file?)");
+        }
         r.big = big_endian;
         let unity_version = r.cstr()?;
         let _platform = r.i32()?;
         let type_tree = r.u8()? != 0;
-        let ntypes = r.i32()? as usize;
+        let ntypes = count(&mut r)?;
         let mut types = Vec::with_capacity(ntypes);
         for _ in 0..ntypes {
             types.push(read_type(&mut r, version, type_tree, false)?);
         }
         let prefix_end = r.pos;
-        let nobj = r.i32()? as usize;
+        let nobj = count(&mut r)?;
         let mut table = Vec::with_capacity(nobj);
         for _ in 0..nobj {
             r.align(4);
@@ -107,13 +124,13 @@ impl SerializedFile {
         }
         let suffix_start = r.pos;
         // scripts, externals (parsed for PPtr file ids), then the rest kept raw
-        let nscripts = r.i32()? as usize;
+        let nscripts = count(&mut r)?;
         for _ in 0..nscripts {
             r.i32()?;
             r.align(4);
             r.i64()?;
         }
-        let next = r.i32()? as usize;
+        let next = count(&mut r)?;
         let mut externals = Vec::with_capacity(next);
         for _ in 0..next {
             r.cstr()?;
@@ -122,13 +139,20 @@ impl SerializedFile {
             externals.push(External { path: r.cstr()? });
         }
         let meta_end = meta_start + meta_size;
+        // Unity 6 files are written 16-aligned as before (the shipped EA2 patch is tested that way);
+        // older files keep their own alignment (2020.3 uses 8), so an unchanged file is rewritten 1:1
+        let unity6 = unity_version.split('.').next().and_then(|y| y.parse::<u32>().ok()).map_or(true, |y| y >= 6000);
+        let obj_align = if unity6 || table.iter().all(|t| t.1 % 16 == 0) { 16 } else { 8 };
         let objects = table
             .into_iter()
             .map(|(path_id, start, size, ti)| {
                 let off = (data_offset + start) as usize;
-                Object { path_id, type_index: ti, class_id: types[ti].class_id, data: file[off..off + size].to_vec(), order: start }
+                let (Some(t), Some(data)) = (types.get(ti), file.get(off..off + size)) else {
+                    bail!("object {path_id}: bad type index {ti} or data range {off}+{size}");
+                };
+                Ok(Object { path_id, type_index: ti, class_id: t.class_id, data: data.to_vec(), order: start })
             })
-            .collect();
+            .collect::<Result<Vec<_>>>()?;
         Ok(SerializedFile {
             version,
             big_endian,
@@ -141,6 +165,7 @@ impl SerializedFile {
             meta_prefix: file[meta_start..prefix_end].to_vec(),
             meta_suffix: file[suffix_start..meta_end].to_vec(),
             orig_data_offset: data_offset,
+            obj_align,
         })
     }
 
@@ -166,7 +191,7 @@ impl SerializedFile {
         let mut placed = vec![0u64; self.objects.len()];
         let mut pos = 0u64;
         for &i in &by_order {
-            pos = (pos + 15) / 16 * 16;
+            pos = (pos + self.obj_align - 1) / self.obj_align * self.obj_align;
             placed[i] = pos;
             pos += self.objects[i].data.len() as u64;
         }

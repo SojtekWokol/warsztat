@@ -1,0 +1,11 @@
+[package]
+name = "ea1"
+version = "0.1.0"
+edition = "2021"
+description = "Escape Academy (part 1) Polish translation: text extraction (patching to come)"
+
+[dependencies]
+unity = { path = "../unity" }
+anyhow = "1"
+serde_json = { version = "1", features = ["preserve_order"] }
+ttf-parser = "0.25"
