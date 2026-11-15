@@ -7,7 +7,10 @@
 //! subtitles_<lang>.json        voice-over subtitles (.srt TextAssets) {clip name: text}
 //! tmp_texts.json               texts typed into TextMeshPro components (scene/prefab UI and 3D signs):
 //!                              "@key" refers to GameplayStrings (gameplay_key: true), the rest is literal
-//! summary.json                 counts per source
+//! summary.json                 counts per source, the LanguageManager language list
+//!
+//! Sources: data.unity3d (no type trees) and the Addressables bundles in StreamingAssets/aa (the campus
+//! with its Yarn programs, the LanguageManager, the credits; these keep type trees).
 use crate::{base_name, text_asset, tmp_text, yarn_program, Files, Game};
 use anyhow::{bail, Context, Result};
 use serde_json::{json, Map, Value};
@@ -120,7 +123,7 @@ pub fn extract(game: &Game, out: &Path, log: &mut dyn FnMut(String)) -> Result<(
     }
     std::fs::create_dir_all(out)?;
     let t = std::time::Instant::now();
-    let files = Files::load(&game.data_file())?;
+    let files = Files::load(game)?;
     log(format!("{} serialized files read in {:.0} s", files.files.len(), t.elapsed().as_secs_f64()));
 
     // every TextAsset once (the same asset can sit in several files)
@@ -300,6 +303,17 @@ pub fn extract(game: &Game, out: &Path, log: &mut dyn FnMut(String)) -> Result<(
     let tmp_json: Vec<Value> = tmp.iter().map(|(text, (is_key, places))| json!({"text": text, "gameplay_key": is_key, "places": places})).collect();
     write_json(&out.join("tmp_texts.json"), &Value::Array(tmp_json))?;
     summary.insert("tmp".into(), json!({"components": comps, "layout_failed": failed, "distinct_texts_with_letters": tmp.len(), "distinct_gameplay_key_refs": as_keys, "key_refs_not_in_tables": missing_keys, "distinct_literal_texts": tmp.len() - as_keys - missing_keys.len()}));
+
+    // 5. the language list the game offers
+    for (fi, (_, sf)) in files.files.iter().enumerate() {
+        for o in sf.objects.iter().filter(|o| o.class_id == 114) {
+            if files.script_of(fi, &o.data).as_deref() == Some("Escape.Localization.LanguageManager") {
+                let (langs, default) = crate::language_manager(&o.data)?;
+                let v: Vec<Value> = langs.iter().map(|l| json!({"type": l.kind, "name": l.display_name, "code": l.code, "csv_index": l.csv_index})).collect();
+                summary.insert("languages".into(), json!({"default_type": default, "list": v}));
+            }
+        }
+    }
 
     write_json(&out.join("summary.json"), &Value::Object(summary.clone()))?;
     log(serde_json::to_string_pretty(&Value::Object(summary))?);

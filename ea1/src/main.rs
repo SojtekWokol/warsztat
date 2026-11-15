@@ -29,7 +29,7 @@ fn main() -> Result<()> {
     match args.get(1).map(|s| s.as_str()) {
         Some("scan") => {
             // which MonoBehaviour scripts carry readable strings (no type trees: a heuristic)
-            let files = Files::load(&game.data_file())?;
+            let files = Files::load(&game)?;
             let mut by: BTreeMap<String, (usize, usize, usize, Vec<String>)> = BTreeMap::new();
             for (fi, (_, sf)) in files.files.iter().enumerate() {
                 for o in sf.objects.iter().filter(|o| o.class_id == 114) {
@@ -57,7 +57,7 @@ fn main() -> Result<()> {
         }
         Some("tmpscan") => {
             // TextMeshPro components: does the layout parse, which scripts sit next to them
-            let files = Files::load(&game.data_file())?;
+            let files = Files::load(&game)?;
             let mut keys = std::collections::HashSet::new();
             for (_, sf) in &files.files {
                 for o in sf.objects.iter().filter(|o| o.class_id == 49) {
@@ -116,7 +116,7 @@ fn main() -> Result<()> {
         }
         Some("fonts") => {
             // TMP font assets and source fonts: are the Polish letters there?
-            let files = Files::load(&game.data_file())?;
+            let files = Files::load(&game)?;
             let pl: Vec<char> = ea1::POLISH_LETTERS.chars().collect();
             let missing = |has: &dyn Fn(char) -> bool| pl.iter().filter(|c| !has(**c)).collect::<String>();
             let mut seen = std::collections::HashSet::new();
@@ -159,14 +159,57 @@ fn main() -> Result<()> {
             }
             Ok(())
         }
+        Some("dump") => {
+            // raw data of every MonoBehaviour whose script name contains the filter (hex + strings)
+            let files = Files::load(&game)?;
+            let filter = args.get(2).cloned().unwrap_or_default();
+            for (fi, (fname, sf)) in files.files.iter().enumerate() {
+                for o in sf.objects.iter().filter(|o| o.class_id == 114) {
+                    let script = files.script_of(fi, &o.data).unwrap_or_else(|| "?".into());
+                    if !script.contains(&filter) {
+                        continue;
+                    }
+                    let (_, _, name) = ea1::mono_start(&o.data)?;
+                    println!("== {script} '{name}' in {fname} #{} ({} bytes)", o.path_id, o.data.len());
+                    for (i, chunk) in o.data.chunks(16).enumerate().take(64) {
+                        let hex: Vec<String> = chunk.iter().map(|b| format!("{b:02x}")).collect();
+                        let txt: String = chunk.iter().map(|&b| if (32..127).contains(&b) { b as char } else { '.' }).collect();
+                        println!("{:06x}  {:<48} {txt}", i * 16, hex.join(" "));
+                    }
+                }
+            }
+            Ok(())
+        }
+        Some("find") => {
+            // objects whose raw data contains a UTF-8 string
+            let files = Files::load(&game)?;
+            let needle = args.get(2).cloned().unwrap_or_default().into_bytes();
+            for (fi, (fname, sf)) in files.files.iter().enumerate() {
+                for o in &sf.objects {
+                    if let Some(at) = o.data.windows(needle.len()).position(|w| w == needle.as_slice()) {
+                        let script = if o.class_id == 114 { files.script_of(fi, &o.data).unwrap_or("?".into()) } else { String::new() };
+                        println!("{fname} #{} class {} {script} at {at} ({} bytes)", o.path_id, o.class_id, o.data.len());
+                    }
+                }
+            }
+            Ok(())
+        }
+        Some("scripts") => {
+            // all MonoScripts (full class names), optionally filtered by a substring
+            let files = Files::load(&game)?;
+            let filter = args.get(2).map(|s| s.to_lowercase()).unwrap_or_default();
+            for s in files.script_names().into_iter().filter(|s| s.to_lowercase().contains(&filter)) {
+                println!("{s}");
+            }
+            Ok(())
+        }
         Some("roundtrip") => {
             // can every serialized file be written back byte for byte (the base of patching)?
-            let files = Files::load(&game.data_file())?;
-            let file = std::fs::read(game.data_file())?;
-            let b = unity::Bundle::read(&file)?;
+            let files = Files::load(&game)?;
+            let bundles: Vec<unity::Bundle> = files.bundles.iter().map(|p| unity::Bundle::read(&std::fs::read(p)?)).collect::<Result<_>>()?;
             let (mut same, mut diff) = (0, 0);
-            for (name, sf) in &files.files {
-                let orig = &b.nodes.iter().find(|n| &n.path == name).unwrap().data;
+            for (i, (name, sf)) in files.files.iter().enumerate() {
+                let orig = &bundles[files.bundle_of[i]].nodes.iter().find(|n| &n.path == name).unwrap().data;
                 if sf.write() == *orig {
                     same += 1;
                 } else {

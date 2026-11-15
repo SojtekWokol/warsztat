@@ -7,7 +7,7 @@ pub mod extract;
 
 use anyhow::{bail, Result};
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use unity::io::Reader;
 use unity::{Bundle, SerializedFile, NODE_SERIALIZED};
 
@@ -24,6 +24,20 @@ impl Game {
     pub fn managed(&self) -> PathBuf {
         self.dir.join("Escape Academy_Data").join("Managed")
     }
+    /// Addressables bundles (StreamingAssets/aa): the campus (metagame), its Yarn programs, the
+    /// LanguageManager and more - these keep their type trees.
+    pub fn aa_bundles(&self) -> Vec<PathBuf> {
+        let dir = self.dir.join("Escape Academy_Data").join("StreamingAssets").join("aa").join("StandaloneWindows64");
+        let mut v: Vec<PathBuf> = std::fs::read_dir(dir).map(|rd| rd.filter_map(|e| e.ok()).map(|e| e.path()).filter(|p| p.extension().map_or(false, |x| x == "bundle")).collect()).unwrap_or_default();
+        v.sort();
+        v
+    }
+    /// Every bundle with game data: data.unity3d first, then the Addressables bundles.
+    pub fn bundles(&self) -> Vec<PathBuf> {
+        let mut v = vec![self.data_file()];
+        v.extend(self.aa_bundles());
+        v
+    }
     pub fn is_valid(&self) -> bool {
         self.data_file().is_file() && self.managed().join("Assembly-CSharp.dll").is_file()
     }
@@ -32,6 +46,9 @@ impl Game {
 /// Every serialized file of the bundle, by node name, plus MonoScript names to tell MonoBehaviours apart.
 pub struct Files {
     pub files: Vec<(String, SerializedFile)>,
+    /// bundle file of each entry of `files` (index into `bundles`)
+    pub bundle_of: Vec<usize>,
+    pub bundles: Vec<PathBuf>,
     /// (file name, path id) of a MonoScript -> "Namespace.Class"
     scripts: HashMap<(String, i64), String>,
 }
@@ -115,14 +132,21 @@ pub fn yarn_program(data: &[u8]) -> Result<YarnProgram> {
 }
 
 impl Files {
-    pub fn load(path: &Path) -> Result<Files> {
-        let file = std::fs::read(path)?;
-        let b = Bundle::read(&file)?;
-        drop(file);
+    pub fn load(game: &Game) -> Result<Files> {
+        Files::load_bundles(&game.bundles())
+    }
+    pub fn load_bundles(paths: &[PathBuf]) -> Result<Files> {
         let mut files = Vec::new();
-        for n in b.nodes.into_iter().filter(|n| n.flags & NODE_SERIALIZED != 0) {
-            let sf = SerializedFile::read(&n.data).map_err(|e| anyhow::anyhow!("{}: {e}", n.path))?;
-            files.push((n.path, sf));
+        let mut bundle_of = Vec::new();
+        for (bi, path) in paths.iter().enumerate() {
+            let file = std::fs::read(path).map_err(|e| anyhow::anyhow!("{}: {e}", path.display()))?;
+            let b = Bundle::read(&file)?;
+            drop(file);
+            for n in b.nodes.into_iter().filter(|n| n.flags & NODE_SERIALIZED != 0) {
+                let sf = SerializedFile::read(&n.data).map_err(|e| anyhow::anyhow!("{}: {e}", n.path))?;
+                files.push((n.path, sf));
+                bundle_of.push(bi);
+            }
         }
         let mut scripts = HashMap::new();
         for (fname, sf) in &files {
@@ -136,7 +160,15 @@ impl Files {
                 scripts.insert((base_name(fname).to_lowercase(), o.path_id), full);
             }
         }
-        Ok(Files { files, scripts })
+        Ok(Files { files, bundle_of, bundles: paths.to_vec(), scripts })
+    }
+
+    /// Every MonoScript as "Namespace.Class".
+    pub fn script_names(&self) -> Vec<String> {
+        let mut v: Vec<String> = self.scripts.values().cloned().collect();
+        v.sort();
+        v.dedup();
+        v
     }
 
     /// The file a PPtr in file `from` points into.
@@ -337,4 +369,36 @@ pub fn find_ttf(data: &[u8]) -> Option<&[u8]> {
         }
         ttf_parser::Face::parse(&data[p..], 0).ok().map(|_| &data[p..])
     })
+}
+
+/// One entry of LanguageManager.languages.
+#[derive(Debug, Clone)]
+pub struct Language {
+    /// Escape.Localization.LanguageType: 0 English, 1 Spanish, 2 German, 3 French (no other values)
+    pub kind: i32,
+    pub display_name: String,
+    pub code: String,
+    /// column of GameplayStrings*.csv (StringReplacementManager reads the text from this column)
+    pub csv_index: i32,
+}
+
+/// Escape.Localization.LanguageManager: currentLanguage, languages[], defaultLanguage,
+/// overrideLanguageInEditor, setLanguageInEditor.
+pub fn language_manager(data: &[u8]) -> Result<(Vec<Language>, i32)> {
+    let (mut r, _, _) = mono_start(data)?;
+    let lang = |r: &mut Reader| -> Result<Language> { Ok(Language { kind: r.i32()?, display_name: rd_str(r)?, code: rd_str(r)?, csv_index: r.i32()? }) };
+    lang(&mut r)?;
+    let n = r.i32()?;
+    if !(0..64).contains(&n) {
+        bail!("bad LanguageManager layout ({n} languages)");
+    }
+    let langs = (0..n).map(|_| lang(&mut r)).collect::<Result<Vec<_>>>()?;
+    let default = r.i32()?;
+    r.u8()?;
+    r.align(4);
+    r.i32()?;
+    if r.pos != data.len() {
+        bail!("LanguageManager: {} bytes left after the known fields", data.len() - r.pos);
+    }
+    Ok((langs, default))
 }
