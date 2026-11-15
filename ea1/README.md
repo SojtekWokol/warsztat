@@ -7,7 +7,7 @@ Pierwszy krok do spolszczenia części 1: wyciąganie tekstów. Wgrywania jeszcz
 - Wersja Epic: `C:\Users\grejs\Epic Games\EscapeAcademyOcy7i` (Unity 2020.3.40f1, Mono).
 - Dane w paczce UnityFS `Escape Academy_Data\data.unity3d` (2,7 GB, 166 węzłów, 88 plików
   serializowanych, format 22, **bez type trees** – układ pól MonoBehaviourów trzeba znać) oraz w paczce
-  Addressables `StreamingAssetsa\StandaloneWindows64readioramas_assets_all_*.bundle` (1,1 GB,
+  Addressables `StreamingAssets\aa\StandaloneWindows64\areadioramas_assets_all_*.bundle` (1,1 GB,
   **z type trees**): kampus, 79 programów Yarn (rozmowy `MG_*`), `LanguageManager`, napisy końcowe.
 - Języki w grze: angielski, francuski, niemiecki, hiszpański.
 
