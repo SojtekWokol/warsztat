@@ -197,7 +197,7 @@ impl Game for Ea1 {
             let area = if part.len() == 3 && part != "MSC" { part } else { "VO".into() };
             entries.push(Entry {
                 id: format!("v:{clip}"), src: "v".into(), key: clip.clone(), area, kind: "vo".into(), speaker: Some(speaker),
-                ctx: "napis do nagrania (znacznik [IMIĘ] dodaje się sam); wgrywanie napisów jeszcze nie działa".into(), en,
+                ctx: "napis do nagrania (znacznik [IMIĘ] dodaje się sam); każda linia to osobny fragment czasowy: przy tej samej liczbie linii podział zostaje, inaczej cały tekst wisi przez całe nagranie".into(), en,
                 refs: ["fr", "de", "es"].iter().filter_map(|l| Some((l.to_string(), split_tag(subs[l].get(clip)?.as_str()?).1))).collect(),
                 ..Default::default()
             });

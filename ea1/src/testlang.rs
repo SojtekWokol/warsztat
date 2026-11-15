@@ -28,5 +28,6 @@ pub fn build_test(game: &Game, out: &Path, polish: &HashMap<String, String>, fon
     }
     let g = |_: &str, en: &str| mark(en);
     let y = |id: &str, en: &str| polish.get(id).cloned().unwrap_or_else(|| mark(en));
-    build(&src, &Place::under(out), &Texts { gameplay: &g, yarn: &y }, fonts_dir, true, log)
+    let v = |_: &str, en: &str| Some(mark(en)).filter(|m| m != en);
+    build(&src, &Place::under(out), &Texts { gameplay: &g, yarn: &y, subtitle: &v }, fonts_dir, true, log)
 }

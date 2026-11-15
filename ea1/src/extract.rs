@@ -92,7 +92,7 @@ fn yarn_table_lang(name: &str) -> Option<(String, String)> {
 }
 
 /// Subtitle text of an .srt: cue texts (index and time lines dropped), cues joined with "\n".
-fn srt_text(src: &str) -> String {
+pub fn srt_text(src: &str) -> String {
     src.trim_start_matches('\u{feff}')
         .lines()
         .map(|l| l.trim_end_matches('\r'))

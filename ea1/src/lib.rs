@@ -495,3 +495,89 @@ pub fn language_manager_add(data: &[u8], l: &Language) -> Result<Vec<u8>> {
     }
     Ok(out)
 }
+
+/// ResourceManager (class 147, globalgamemanagers): m_Container (sorted name -> PPtr, what
+/// Resources.Load looks up), then m_DependentAssets (kept as bytes).
+pub fn resource_container(data: &[u8]) -> Result<(Vec<(String, PPtr)>, usize)> {
+    let mut r = Reader::new(data, false);
+    let n = r.i32()?;
+    if !(0..1_000_000).contains(&n) {
+        bail!("bad ResourceManager layout");
+    }
+    let mut v = Vec::with_capacity(n as usize);
+    for _ in 0..n {
+        let k = rd_str(&mut r)?;
+        v.push((k, rd_pptr(&mut r)?));
+    }
+    Ok((v, r.pos))
+}
+
+/// ResourceManager data with more entries, inserted in the container's sort order.
+pub fn resource_container_add(data: &[u8], add: &[(String, PPtr)]) -> Result<Vec<u8>> {
+    let (mut v, end) = resource_container(data)?;
+    if v.windows(2).any(|w| w[0].0.as_bytes() > w[1].0.as_bytes()) {
+        bail!("ResourceManager container is not sorted by name - unknown layout");
+    }
+    for (k, p) in add {
+        let at = v.partition_point(|e| e.0.as_bytes() <= k.as_bytes());
+        v.insert(at, (k.clone(), *p));
+    }
+    let mut out = Vec::new();
+    out.extend_from_slice(&(v.len() as i32).to_le_bytes());
+    for (k, p) in &v {
+        put_str(&mut out, k);
+        out.extend_from_slice(&p.file.to_le_bytes());
+        out.extend_from_slice(&p.path.to_le_bytes());
+    }
+    out.extend_from_slice(&data[end..]);
+    Ok(out)
+}
+
+/// A Polish .srt from the English one: the "[NAME]" tag of the first line stays; with as many lines as
+/// the English text every line keeps its cue (timing), otherwise all lines go into one cue spanning
+/// from the first cue's start to the last cue's end.
+pub fn srt_polish(en_srt: &str, pl: &str) -> String {
+    let eol = if en_srt.contains("\r\n") { "\r\n" } else { "\n" };
+    let body = en_srt.trim_start_matches('\u{feff}').replace("\r\n", "\n");
+    let mut cues: Vec<(String, Vec<String>)> = Vec::new();
+    for block in body.split("\n\n").map(|b| b.trim_matches('\n')).filter(|b| !b.is_empty()) {
+        let lines: Vec<&str> = block.lines().collect();
+        let Some(ti) = lines.iter().position(|l| l.contains("-->")) else { continue };
+        cues.push((lines[ti].trim().to_string(), lines[ti + 1..].iter().map(|s| s.to_string()).collect()));
+    }
+    if cues.is_empty() {
+        return en_srt.to_string();
+    }
+    let first = cues.iter().flat_map(|c| c.1.iter()).next().cloned().unwrap_or_default();
+    let tag = if first.starts_with('[') { first.find(']').map(|i| first[..=i].to_string() + " ").unwrap_or_default() } else { String::new() };
+    let mut pl_lines: Vec<String> = pl.replace("\r\n", "\n").split('\n').map(|s| s.to_string()).collect();
+    if !tag.is_empty() && !pl_lines[0].starts_with('[') {
+        pl_lines[0] = format!("{tag}{}", pl_lines[0]);
+    }
+    let total: usize = cues.iter().map(|c| c.1.len()).sum();
+    let out_cues: Vec<(String, Vec<String>)> = if pl_lines.len() == total {
+        let mut it = pl_lines.into_iter();
+        cues.iter().map(|(t, ls)| (t.clone(), (0..ls.len()).filter_map(|_| it.next()).collect())).collect()
+    } else {
+        let start = cues[0].0.split("-->").next().unwrap_or("").trim().to_string();
+        let end = cues.last().unwrap().0.split("-->").nth(1).unwrap_or("").trim().to_string();
+        vec![(format!("{start} --> {end}"), pl_lines)]
+    };
+    let mut s = String::new();
+    for (i, (t, ls)) in out_cues.iter().enumerate() {
+        s.push_str(&format!("{}{eol}{t}{eol}{}{eol}{eol}", i + 1, ls.join(eol)));
+    }
+    s
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn srt_polish_keeps_cues_or_merges() {
+        let en = "1\r\n00:00:00,000 --> 00:00:02,000\r\n[COACH] One.\r\n\r\n2\r\n00:00:02,000 --> 00:00:04,500\r\nTwo.\r\n\r\n";
+        let same = super::srt_polish(en, "Raz.\nDwa.");
+        assert_eq!(same, "1\r\n00:00:00,000 --> 00:00:02,000\r\n[COACH] Raz.\r\n\r\n2\r\n00:00:02,000 --> 00:00:04,500\r\nDwa.\r\n\r\n");
+        let merged = super::srt_polish(en, "Raz i dwa.");
+        assert_eq!(merged, "1\r\n00:00:00,000 --> 00:00:04,500\r\n[COACH] Raz i dwa.\r\n\r\n");
+    }
+}

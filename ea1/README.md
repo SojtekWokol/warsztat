@@ -13,8 +13,12 @@ Projekt EA1 to folder `ea1/` obok tłumaczenia EA2 (w repozytorium tłumaczeń t
 - `ea1/backup/<id instalacji>/` – kopie oryginałów (`kopie`, znacznik `Escape Academy_Data/ea1_pl.json`).
 
 Identyfikatory: `g:<klucz GameplayStrings>`, `y:<id kwestii Yarn>` (kwestia bez przedrostka „Postać:”,
-który w grze zostaje angielski, bo gra po nim wybiera mówiącą postać), `v:<klip>` (napis do nagrania –
-jeszcze nie wgrywany).
+który w grze zostaje angielski, bo gra po nim wybiera mówiącą postać), `v:<klip>` (napis do nagrania bez
+znacznika „[IMIĘ]”). Napisy: `SubtitleDisplayer` ładuje `Resources.Load("<klip>_<kod języka>")`, więc
+patch dodaje TextAssety `<klip>_pl` do `resources.assets` i wpisy w kontenerze `ResourceManager`
+(posortowanym po nazwie). Linie tłumaczenia trafiają do kolejnych fragmentów czasowych `.srt`, gdy jest
+ich tyle samo co w oryginale; inaczej cały tekst idzie w jeden wpis na całe nagranie. Nieprzetłumaczone
+napisy zostają angielskie (gra sama do nich wraca).
 
 `rust/target/release/warsztat-ea1.exe` – warsztat (interfejs skopiowany z EA2); „Wgraj do gry” robi to samo
 co `ea1 patch`, „Uruchom grę” odpala `Escape Academy.exe`.
@@ -148,8 +152,6 @@ folderu gry, gry nie dotyka). Sprawdzone poza grą: `ilcheck` = Patched, `extrac
 tłumaczenia `pl`. **Nie sprawdzone w grze.**
 
 Zostaje do zrobienia:
-- napisy do nagrań: nowe TextAssety `<klip>_pl` w `resources.assets` + wpisy w kontenerze
-  `ResourceManager` (Resources.Load) oraz wpisy `{0, pl}` w `VoSubtitleData`;
 - fonty Contra i RockSalt (brak plików źródłowych), sprawdzić college/DS-DIGI/DOTMATRI i LiberationSans;
 - polskie imiona mówiących (przedrostek „Postać:” w Yarn) – sprawdzić, czy gra dobiera po nim postać;
 - teksty wpisane w komponenty TMP (napisy końcowe) i wykrywanie polskiego systemu

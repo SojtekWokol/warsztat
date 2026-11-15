@@ -68,6 +68,9 @@ pub struct Texts<'a> {
     pub gameplay: &'a dyn Fn(&str, &str) -> String,
     /// Yarn: (line id, English line with its speaker prefix) -> the line of the "pl" table
     pub yarn: &'a dyn Fn(&str, &str) -> String,
+    /// voice subtitles: (clip name, English text without its "[NAME]" tag) -> Polish, None = untranslated
+    /// (the game then shows the English subtitle)
+    pub subtitle: &'a dyn Fn(&str, &str) -> Option<String>,
 }
 
 /// "Speaker:line" when a colon appears in the first 40 characters (as in the EA2 workshop).
@@ -80,7 +83,7 @@ pub fn split_speaker(text: &str) -> (String, String) {
 }
 
 /// Texts from a translation store {id: Polish}; untranslated texts stay English.
-pub fn store_texts(store: &BTreeMap<String, String>) -> (impl Fn(&str, &str) -> String + '_, impl Fn(&str, &str) -> String + '_) {
+pub fn store_texts(store: &BTreeMap<String, String>) -> (impl Fn(&str, &str) -> String + '_, impl Fn(&str, &str) -> String + '_, impl Fn(&str, &str) -> Option<String> + '_) {
     let g = move |key: &str, en: &str| store.get(&format!("g:{key}")).filter(|s| !s.is_empty()).cloned().unwrap_or_else(|| en.to_string());
     let y = move |id: &str, en: &str| {
         let (speaker, line) = split_speaker(en);
@@ -92,7 +95,8 @@ pub fn store_texts(store: &BTreeMap<String, String>) -> (impl Fn(&str, &str) -> 
             None => en.to_string(),
         }
     };
-    (g, y)
+    let v = move |clip: &str, _en: &str| store.get(&format!("v:{clip}")).filter(|s| !s.trim().is_empty()).cloned();
+    (g, y, v)
 }
 
 pub fn write_csv(rows: &[Vec<String>], eol: &str) -> String {
@@ -250,6 +254,46 @@ pub fn build(src: &Place, dst: &Place, texts: &Texts, fonts_dir: &Path, write: b
     }
     log(format!("[2/4] Teksty interfejsu: {gp_pl} po polsku; język „Polski” w menu"));
 
+    // voice subtitles: "<clip>_pl" TextAssets in resources.assets, registered in the ResourceManager
+    // (SubtitleDisplayer loads Resources "<clip>_<language code>")
+    let res_fi = files.files.iter().position(|(n, _)| n == "resources.assets").ok_or_else(|| anyhow!("no resources.assets"))?;
+    let ggm_fi = files.files.iter().position(|(n, _)| n == "globalgamemanagers").ok_or_else(|| anyhow!("no globalgamemanagers"))?;
+    let res_file_id = files.files[ggm_fi].1.externals.iter().position(|e| base_name(&e.path) == "resources.assets").ok_or_else(|| anyhow!("globalgamemanagers does not refer to resources.assets"))? as i32 + 1;
+    let names: HashSet<String> = files.files[res_fi].1.objects.iter().filter(|o| o.class_id == 49).filter_map(|o| text_asset(&o.data).ok().map(|t| t.0)).collect();
+    let mut new_subs: Vec<(String, Vec<u8>)> = Vec::new();
+    for o in files.files[res_fi].1.objects.iter().filter(|o| o.class_id == 49) {
+        let (name, body) = text_asset(&o.data)?;
+        let s = String::from_utf8_lossy(&body);
+        if !s.contains("-->") || ["_de", "_fr", "_es", "_pl"].iter().any(|x| name.ends_with(x)) || names.contains(&format!("{name}_{POLISH}")) {
+            continue;
+        }
+        let en = crate::extract::srt_text(&s);
+        let en = match en.strip_prefix('[').and_then(|r| r.find(']').map(|i| r[i + 1..].trim_start().to_string())) {
+            Some(rest) => rest,
+            None => en,
+        };
+        if let Some(pl) = (texts.subtitle)(&name, &en) {
+            new_subs.push((name, crate::srt_polish(&s, &pl).into_bytes()));
+        }
+    }
+    if !new_subs.is_empty() {
+        let ti = files.files[res_fi].1.types.iter().position(|t| t.class_id == 49).unwrap();
+        let mut entries = Vec::new();
+        for (name, body) in &new_subs {
+            let sf = &mut files.files[res_fi].1;
+            let id = sf.max_path_id() + 1;
+            let pl_name = format!("{name}_{POLISH}");
+            sf.add_object(id, ti, text_asset_data(&pl_name, body));
+            entries.push((pl_name.to_lowercase(), PPtr { file: res_file_id, path: id }));
+        }
+        let rm = files.files[ggm_fi].1.objects.iter().position(|o| o.class_id == 147).ok_or_else(|| anyhow!("no ResourceManager"))?;
+        let o = &mut files.files[ggm_fi].1.objects[rm];
+        o.data = crate::resource_container_add(&o.data, &entries)?;
+        changed.insert(res_fi);
+        changed.insert(ggm_fi);
+    }
+    log(format!("[2/4] Napisy do nagrań: {} po polsku", new_subs.len()));
+
     // repack, fonts, catalog
     let dsts = [&dst.data, &dst.aa];
     let mut repacked: Vec<(usize, unity::Bundle)> = Vec::new();
@@ -346,8 +390,8 @@ pub fn run(o: Options, log: &mut dyn FnMut(String)) -> Result<()> {
         Some(d) => Place::under(d),
         None => game_place.clone(),
     };
-    let (g, y) = store_texts(o.store);
-    let texts = Texts { gameplay: &g, yarn: &y };
+    let (g, y, v) = store_texts(o.store);
+    let texts = Texts { gameplay: &g, yarn: &y, subtitle: &v };
     build(&src, &dst, &texts, o.fonts_dir, !o.dry_run, log)?;
     if into_game {
         for p in game_place.all() {
