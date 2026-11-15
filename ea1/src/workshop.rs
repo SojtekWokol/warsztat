@@ -179,6 +179,17 @@ impl Game for Ea1 {
         }
         let _ = self.programs.set(programs);
 
+        // the name tag of a dialogue is the actor's displayName, a GameplayStrings reference like
+        // "@employee" (the "Speaker:" prefix of the line is only the actor id and stays English):
+        // those keys are the speaker names to translate
+        let speakers: HashSet<String> = entries.iter().filter(|e| e.src == "y").filter_map(|e| e.speaker.as_ref().map(|s| s.to_lowercase())).collect();
+        for e in entries.iter_mut().filter(|e| e.src == "g" && (speakers.contains(&e.key.to_lowercase()) || e.ctx.contains("Character Name"))) {
+            e.kind = "name".into();
+            if e.ctx.is_empty() {
+                e.ctx = "imię nad dymkiem w dialogach".into();
+            }
+        }
+
         // voice-over subtitles: "v:<clip>" ("[COACH YOACH] text" -> speaker + text)
         static TAG: OnceLock<Regex> = OnceLock::new();
         let subs: HashMap<&str, Value> = ["en", "fr", "de", "es"].iter().map(|l| Ok((*l, read_json(&ex.join(format!("subtitles_{l}.json")))?))).collect::<Result<_>>()?;
@@ -288,26 +299,13 @@ impl Game for Ea1 {
     fn names(&self, cx: &Ctx) -> Vec<Value> {
         static NR: OnceLock<Regex> = OnceLock::new();
         let r = rx(&NR, r"(LevelName|_Name|QuestName)$");
-        let mut out: Vec<Value> = cx
+        let out: Vec<Value> = cx
             .entries
             .iter()
             .filter(|e| e.src == "g" && (e.kind == "name" || e.kind == "item" || r.is_match(&e.key)))
             .map(|e| json!({"id": e.id, "key": e.key, "group": e.kind, "area": cx.areas.get(&e.area).cloned().unwrap_or(e.area.clone()), "en": e.en, "pl": cx.store.pl(&e.id)}))
             .collect();
-        // dialogue speakers: "s:<English name>" (shown in the workshop; the game keeps the English prefix for now)
-        let mut cnt: Vec<(String, usize)> = Vec::new();
-        for e in cx.entries.iter().filter(|e| e.src == "y") {
-            let Some(sp) = e.speaker.as_deref().filter(|s| !s.is_empty()) else { continue };
-            match cnt.iter_mut().find(|x| x.0 == sp) {
-                Some(x) => x.1 += 1,
-                None => cnt.push((sp.to_string(), 1)),
-            }
-        }
-        cnt.sort_by(|a, b| b.1.cmp(&a.1));
-        for (name, n) in cnt {
-            let id = format!("s:{name}");
-            out.push(json!({"id": id, "key": format!("{n} kwestii"), "group": "speaker", "area": "dialogi", "en": name, "pl": cx.store.pl(&id)}));
-        }
+        // speakers of the dialogues are GameplayStrings keys too (kind "name", see load), already above
         out
     }
 

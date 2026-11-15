@@ -12,8 +12,10 @@ Projekt EA1 to folder `ea1/` obok tłumaczenia EA2 (w repozytorium tłumaczeń t
 - `ea1/extracted/` – teksty gry (robione przy pierwszym starcie z czystych plików gry);
 - `ea1/backup/<id instalacji>/` – kopie oryginałów (`kopie`, znacznik `Escape Academy_Data/ea1_pl.json`).
 
-Identyfikatory: `g:<klucz GameplayStrings>`, `y:<id kwestii Yarn>` (kwestia bez przedrostka „Postać:”,
-który w grze zostaje angielski, bo gra po nim wybiera mówiącą postać), `v:<klip>` (napis do nagrania bez
+Identyfikatory: `g:<klucz GameplayStrings>`, `y:<id kwestii Yarn>` (kwestia bez przedrostka „Postać:”:
+to id aktora dla `GetActorById`, więc zostaje angielskie; imię nad dymkiem to `ActorGraphics.displayName`,
+odnośnik „@employee” do GameplayStrings, czyli tłumaczy się je jako `g:employee` – warsztat pokazuje
+takie klucze w zakładce nazw), `v:<klip>` (napis do nagrania bez
 znacznika „[IMIĘ]”). Napisy: `SubtitleDisplayer` ładuje `Resources.Load("<klip>_<kod języka>")`, więc
 patch dodaje TextAssety `<klip>_pl` do `resources.assets` i wpisy w kontenerze `ResourceManager`
 (posortowanym po nazwie). Linie tłumaczenia trafiają do kolejnych fragmentów czasowych `.srt`, gdy jest
@@ -153,7 +155,6 @@ tłumaczenia `pl`. **Nie sprawdzone w grze.**
 
 Zostaje do zrobienia:
 - fonty Contra i RockSalt (brak plików źródłowych), sprawdzić college/DS-DIGI/DOTMATRI i LiberationSans;
-- polskie imiona mówiących (przedrostek „Postać:” w Yarn) – sprawdzić, czy gra dobiera po nim postać;
 - teksty wpisane w komponenty TMP (napisy końcowe) i wykrywanie polskiego systemu
   (`SystemLanguageToLanguageType` w kodzie) – na razie polski wybiera się w menu, a gra zapamiętuje kod `pl`;
 - wspólny interfejs warsztatu dla EA1 i EA2 (dziś `warsztat-ea1/ui` to kopia `warsztat-ea2/ui`).
