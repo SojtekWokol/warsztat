@@ -6,6 +6,7 @@ description = "Escape Academy (part 1) Polish translation: text extraction (patc
 
 [dependencies]
 unity = { path = "../unity" }
+ea2 = { path = "../ea2" }
 anyhow = "1"
 serde_json = { version = "1", features = ["preserve_order"] }
 ttf-parser = "0.25"

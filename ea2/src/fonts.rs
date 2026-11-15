@@ -22,7 +22,13 @@ pub const SOURCES: &[(&str, &str)] = &[
     ("BizUDMincho_Regular", "game:BIZUDMincho-Regular"),
 ];
 
+fn default_sources() -> Vec<(String, String)> {
+    SOURCES.iter().map(|(a, b)| (a.to_string(), b.to_string())).collect()
+}
+
 pub struct FontPatcher {
+    /// font asset name -> source font file (EA2: `SOURCES`; another game passes its own list)
+    sources: Vec<(String, String)>,
     dir: PathBuf,
     files: HashMap<String, Vec<u8>>,
     cache: HashMap<(String, char, i64, usize), sdf::Glyph>,
@@ -32,12 +38,19 @@ pub struct FontPatcher {
 
 impl FontPatcher {
     pub fn new(dir: &Path) -> FontPatcher {
-        FontPatcher { dir: dir.to_path_buf(), files: HashMap::new(), cache: HashMap::new(), grown: vec![] }
+        FontPatcher { sources: default_sources(), dir: dir.to_path_buf(), files: HashMap::new(), cache: HashMap::new(), grown: vec![] }
+    }
+
+    /// Another game's fonts: (font asset name, source font file in `dir`).
+    pub fn with_sources(dir: &Path, sources: &[(&str, &str)]) -> FontPatcher {
+        let mut f = FontPatcher::new(dir);
+        f.sources = sources.iter().map(|(a, b)| (a.to_string(), b.to_string())).collect();
+        f
     }
 
     /// Font files given in memory (file name -> bytes), e.g. built into the installer.
     pub fn with_files(files: HashMap<String, Vec<u8>>) -> FontPatcher {
-        FontPatcher { dir: PathBuf::new(), files, cache: HashMap::new(), grown: vec![] }
+        FontPatcher { sources: default_sources(), dir: PathBuf::new(), files, cache: HashMap::new(), grown: vec![] }
     }
 
     fn glyph(&mut self, file: &str, ch: char, pt: f64, pad: usize) -> Result<&sdf::Glyph> {
@@ -57,7 +70,9 @@ impl FontPatcher {
     pub fn patch_pack(&mut self, pack: &mut Pack, reg: &TypeRegistry, log: &mut dyn FnMut(String)) -> Result<usize> {
         self.grown.clear();
         // sources taken from the game's own Font objects (class 128, m_FontData)
-        for &(_, file) in SOURCES {
+        let sources = self.sources.clone();
+        for (_, file) in &sources {
+            let file = file.as_str();
             let Some(fname) = file.strip_prefix("game:") else { continue };
             if self.files.contains_key(file) {
                 continue;
@@ -83,20 +98,20 @@ impl FontPatcher {
             .filter(|&at| pack.class(at) == 114)
             .filter(|&at| {
                 std::env::var("EA2_ALLFONTS").is_ok()
-                    || pack.sf(at.file).objects[at.obj].data.get(..120).map_or(false, |d| d.windows(4).any(|w| w == b" SDF") || SOURCES.iter().any(|s| d.windows(s.0.len()).any(|w| w == s.0.as_bytes())))
+                    || pack.sf(at.file).objects[at.obj].data.get(..120).map_or(false, |d| d.windows(4).any(|w| w == b" SDF") || sources.iter().any(|s| d.windows(s.0.len()).any(|w| w == s.0.as_bytes())))
             })
             .filter(|&at| pack.tree(reg, at).map_or(false, |t| t.child("m_GlyphTable").is_some()))
             .collect();
         for at in fonts {
             let mut v = pack.read_obj(reg, at)?;
             let name = v.get("m_Name").and_then(|x| x.str()).unwrap_or("").to_string();
-            if let Some(&(_, f)) = SOURCES.iter().find(|s| s.0 == name) {
+            if let Some((_, f)) = sources.iter().find(|s| s.0 == name) {
                 if f.starts_with("game:") && !self.files.contains_key(f) {
                     log(format!("  {name}: no font file in the game, skipped"));
                     continue;
                 }
             }
-            let Some(&(_, file)) = SOURCES.iter().find(|s| s.0 == name) else {
+            let Some((_, file)) = sources.iter().find(|s| s.0 == name) else {
                 // a font we have no source for: say if it lacks Polish letters (they would come from a fallback font)
                 let have: Vec<i64> = v.get("m_CharacterTable").and_then(|t| t.array()).map(|a| a.iter().filter_map(|c| c.get("m_Unicode")?.i64()).collect()).unwrap_or_default();
                 let missing = POLISH.chars().filter(|c| !have.contains(&(*c as i64))).count();

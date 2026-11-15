@@ -56,11 +56,25 @@ bez zysku na dziś. Wróćmy do tego, jeśli trzeba będzie czytać wiele innych
 
 ## Fonty
 
-Główne fonty TMP są statyczne i nie mają polskich liter (poza Ó/ó): Urbanist (5572 komponenty),
-ChunkFive (2046), Contra (1434), college (994), Kalam-Bold, Urbanist_body, DS-DIGI, knewave,
-RockSalt, DOTMATRI. Dynamiczny jest tylko `LiberationSans SDF` (593 komponenty) – jego font źródłowy
-ma polskie litery, więc tam zadziała od razu. Trzeba dorysować glify SDF jak w EA2
-(`ea2::fonts`/`ea2::sdf`; Urbanist jest w obu grach).
+Fonty TMP są statyczne i nie mają polskich liter (poza Ó/ó). `testlang` dorysowuje je patcherem z EA2
+(`ea2::fonts`, lista fontów EA1 w `testlang::FONT_SOURCES`, pliki z `fonts/` w repo). Type trees dla
+`TMP_FontAsset`/`Texture2D`/`Material` bierze z paczki Addressables, a te same drzewa obsługują
+`data.unity3d`. Fonty są w obu paczkach (osobne kopie atlasów).
+
+| Font asset | Plik | Komponentów | Stan |
+|---|---|---|---|
+| Urbanist | Urbanist-ExtraBold.ttf (wagę sprawdzono po szerokościach liter) | 5572 | dorysowane |
+| Urbanist_body | Urbanist-SemiBold.ttf | 288 | dorysowane |
+| ChunkFive | ChunkFive-Regular.ttf | 2046 | dorysowane |
+| Kalam-Bold SDF | Kalam-Bold.ttf | 285 | dorysowane |
+| knewave SDF | Knewave-PL.ttf | 191 | dorysowane |
+| Contra SDF | brak pliku | 1434 | do zrobienia |
+| college SDF | brak (76 znaków, chyba same wielkie litery) | 994 | do sprawdzenia |
+| DS-DIGI SDF | brak (zegary, cyfry) | 214 | raczej niepotrzebne |
+| RockSalt-Regular SDF | brak (Google Fonts, OFL) | 53 | do zrobienia |
+| DOTMATRI SDF | brak | 32 | do sprawdzenia |
+
+`LiberationSans SDF` jest dynamiczny, ale w grze i tak pokazywał kratki – może też wymagać dorysowania.
 
 ## Wybór języka (kod gry)
 

@@ -740,6 +740,7 @@ dependencies = [
  "anyhow",
  "base64 0.22.1",
  "crc32fast",
+ "ea2",
  "serde_json",
  "ttf-parser",
  "unity",

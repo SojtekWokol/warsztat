@@ -249,7 +249,8 @@ fn main() -> Result<()> {
                 Some(p) => serde_json::from_str(&std::fs::read_to_string(&p)?)?,
                 None => Default::default(),
             };
-            ea1::testlang::build(&game, std::path::Path::new(&out), &polish, &mut |m| println!("{m}"))
+            let fonts = arg(&args, "--fonts").map(PathBuf::from).unwrap_or_else(|| project_root().join("fonts"));
+            ea1::testlang::build(&game, std::path::Path::new(&out), &polish, &fonts, &mut |m| println!("{m}"))
         }
         Some("extract") => {
             let out = PathBuf::from(arg(&args, "--out").unwrap_or_else(|| project_root().join("extracted_ea1").to_string_lossy().into()));

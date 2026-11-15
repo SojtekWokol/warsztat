@@ -16,6 +16,16 @@ use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
 pub const POLISH: &str = "pl";
+
+/// EA1 font assets with a source font in the repository's fonts/ folder (weights checked against the
+/// game's glyph advances: Urbanist = ExtraBold, Urbanist_body = SemiBold).
+pub const FONT_SOURCES: &[(&str, &str)] = &[
+    ("Urbanist", "Urbanist-ExtraBold.ttf"),
+    ("Urbanist_body", "Urbanist-SemiBold.ttf"),
+    ("ChunkFive", "ChunkFive-Regular.ttf"),
+    ("Kalam-Bold SDF", "Kalam-Bold.ttf"),
+    ("knewave SDF", "Knewave-PL.ttf"),
+];
 pub const POLISH_CSV_INDEX: i32 = 7;
 
 /// Marks sentences only (numbers, keys and single words stay as they are: puzzles compare them).
@@ -109,7 +119,7 @@ pub fn catalog_update(catalog: &str, hash: &str, crc: u32, size: u64) -> Result<
 }
 
 /// `polish`: finished Polish Yarn lines {line id: text} used instead of the marked English.
-pub fn build(game: &Game, out: &Path, polish: &HashMap<String, String>, log: &mut dyn FnMut(String)) -> Result<()> {
+pub fn build(game: &Game, out: &Path, polish: &HashMap<String, String>, fonts_dir: &Path, log: &mut dyn FnMut(String)) -> Result<()> {
     let mut files = Files::load(game)?;
     log(format!("{} files from {} bundles", files.files.len(), files.bundles.len()));
     let mut changed: HashSet<usize> = HashSet::new();
@@ -173,7 +183,7 @@ pub fn build(game: &Game, out: &Path, polish: &HashMap<String, String>, log: &mu
 
     // 4. repack the changed bundles
     let data_dir = out.join("Escape Academy_Data");
-    let mut catalog = None;
+    let mut written: Vec<(usize, std::path::PathBuf)> = Vec::new();
     for (bi, path) in files.bundles.iter().enumerate() {
         let touched: Vec<usize> = (0..files.files.len()).filter(|&fi| files.bundle_of[fi] == bi && changed.contains(&fi)).collect();
         if touched.is_empty() {
@@ -184,21 +194,37 @@ pub fn build(game: &Game, out: &Path, polish: &HashMap<String, String>, log: &mu
             let (name, sf) = &files.files[*fi];
             b.node_mut(name).unwrap().data = sf.write();
         }
-        let bytes = b.write();
         let rel = path.strip_prefix(&game.dir.join("Escape Academy_Data"))?;
         let dest = data_dir.join(rel);
         std::fs::create_dir_all(dest.parent().unwrap())?;
-        std::fs::write(&dest, &bytes)?;
-        log(format!("written {} ({} MB)", dest.display(), bytes.len() >> 20));
-        if bi > 0 {
+        std::fs::write(&dest, b.write())?;
+        written.push((bi, dest));
+    }
+    let bundles = files.bundles.clone();
+    drop(files);
+
+    // 5. Polish letters in the SDF fonts (ea2's patcher; type trees from the Addressables bundle,
+    // which has them, serve data.unity3d too: same scripts and classes)
+    let mut reg = unity::TypeRegistry::default();
+    for p in bundles.iter().skip(1) {
+        reg.add_bundle(&unity::Bundle::read(&std::fs::read(p)?)?)?;
+    }
+    reg.add_builtin();
+    let mut fp = ea2::fonts::FontPatcher::with_sources(fonts_dir, FONT_SOURCES);
+    let mut catalog = None;
+    for (bi, dest) in &written {
+        let mut pack = ea2::pack::Pack::read(&std::fs::read(dest)?)?;
+        let n = fp.patch_pack(&mut pack, &reg, log)?;
+        pack.commit();
+        let bytes = pack.bundle.write();
+        std::fs::write(dest, &bytes)?;
+        log(format!("written {} ({} MB, {n} fonts patched)", dest.display(), bytes.len() >> 20));
+        if *bi > 0 {
             // Addressables bundle: new CRC (of the uncompressed data) and size in the catalog
-            let mut h = crc32fast::Hasher::new();
-            for n in &b.nodes {
-                h.update(&n.data);
-            }
-            let hash = base_name(&path.to_string_lossy()).rsplit_once('_').map(|x| x.1.trim_end_matches(".bundle").to_string()).unwrap_or_default();
+            let crc = pack.crc();
+            let hash = base_name(&bundles[*bi].to_string_lossy()).rsplit_once('_').map(|x| x.1.trim_end_matches(".bundle").to_string()).unwrap_or_default();
             let src = catalog.take().map_or_else(|| std::fs::read_to_string(game.dir.join("Escape Academy_Data/StreamingAssets/aa/catalog.json")), Ok)?;
-            catalog = Some(catalog_update(&src, &hash, h.finalize(), bytes.len() as u64)?);
+            catalog = Some(catalog_update(&src, &hash, crc, bytes.len() as u64)?);
         }
     }
     if let Some(c) = catalog {
@@ -207,7 +233,7 @@ pub fn build(game: &Game, out: &Path, polish: &HashMap<String, String>, log: &mu
         log(format!("written {}", dest.display()));
     }
 
-    // 5. the IL patch
+    // 6. the IL patch
     let dll = std::fs::read(game.managed().join("Assembly-CSharp.dll"))?;
     let patched = il::patch(&dll)?;
     std::fs::create_dir_all(data_dir.join("Managed"))?;
