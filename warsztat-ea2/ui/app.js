@@ -510,7 +510,7 @@ document.addEventListener("keydown", (e) => {
 });
 
 // ---------- corrections files ----------
-const STATUS = { nowa: "nowa", zmiana: "zmiana", konflikt: "konflikt", jest: "już jest", "zła": "zła" };
+const STATUS = { nowa: "nowa", zmiana: "zmiana", konflikt: "konflikt", jest: "bez zmian", "zła": "zła" };
 const PICK = (st) => st === "nowa" || st === "zmiana"; // ticked by default
 let importItems = [];
 const lsGet = (k) => { try { return localStorage.getItem(k) || ""; } catch { return ""; } };
@@ -534,7 +534,7 @@ $("corr-file").onchange = async () => {
     (r.base ? `Pomocnik zaczynał od wersji ${r.base}${r.base_known ? "" : " (której nie masz – konflikty mogą być na wyrost)"}. ` : "") +
     `„Zmiana” to kwestia, której od tamtej wersji nie ruszałeś; „konflikt” – zmienialiście ją obaj. Zaznaczone trafią do tłumaczenia ze statusem „do sprawdzenia”.`;
   $("imp-list").innerHTML = r.items.map((x) => {
-    const usable = x.status === "nowa" || x.status === "zmiana" || x.status === "konflikt";
+    const usable = x.status === "nowa" || x.status === "zmiana" || x.status === "konflikt" || x.status === "jest";
     return `<label class="imp-item ${usable ? "" : "off"}">
       <input type="checkbox" data-id="${esc(x.id)}" ${PICK(x.status) ? "checked" : ""} ${usable ? "" : "disabled"}>
       <span class="imp-status ${x.status === "zła" ? "zla" : x.status}">${STATUS[x.status] || x.status}</span>
