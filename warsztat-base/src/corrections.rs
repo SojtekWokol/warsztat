@@ -62,7 +62,9 @@ pub fn review(ws: &Workshop, cx: &Ctx, payload: &Value) -> Value {
             let e = cx.entry(id);
             let cur = cx.store.map.get(id).map(|r| r.pl.clone());
             let pl = s(x, "pl");
-            let was = base.as_ref().map(|b| b.get(id).cloned().unwrap_or_default());
+            // the text the helper saw: given per line ("seen", e.g. reviews made on the current texts), else the
+            // helper's release
+            let was = x.get("seen").and_then(|v| v.as_str()).map(String::from).or_else(|| base.as_ref().map(|b| b.get(id).cloned().unwrap_or_default()));
             let status = match e {
                 None => "zła",
                 Some(_) if pl.trim().is_empty() => "zła",
