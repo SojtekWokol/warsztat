@@ -9,3 +9,5 @@ unity = { path = "../unity" }
 anyhow = "1"
 serde_json = { version = "1", features = ["preserve_order"] }
 ttf-parser = "0.25"
+base64 = "0.22"
+crc32fast = "1"

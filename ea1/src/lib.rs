@@ -4,6 +4,8 @@
 //! Almost all text is in TextAssets (a built-in class whose layout is fixed: m_Name, m_Script), so
 //! the few MonoBehaviours we need (YarnProgram) use hand-written layouts - see `yarn_program`.
 pub mod extract;
+pub mod il;
+pub mod testlang;
 
 use anyhow::{bail, Result};
 use std::collections::HashMap;
@@ -401,4 +403,74 @@ pub fn language_manager(data: &[u8]) -> Result<(Vec<Language>, i32)> {
         bail!("LanguageManager: {} bytes left after the known fields", data.len() - r.pos);
     }
     Ok((langs, default))
+}
+
+fn put_str(out: &mut Vec<u8>, s: &str) {
+    out.extend_from_slice(&(s.len() as i32).to_le_bytes());
+    out.extend_from_slice(s.as_bytes());
+    while out.len() % 4 != 0 {
+        out.push(0);
+    }
+}
+
+/// TextAsset object data.
+pub fn text_asset_data(name: &str, body: &[u8]) -> Vec<u8> {
+    let mut out = Vec::new();
+    put_str(&mut out, name);
+    out.extend_from_slice(&(body.len() as i32).to_le_bytes());
+    out.extend_from_slice(body);
+    while out.len() % 4 != 0 {
+        out.push(0);
+    }
+    out
+}
+
+/// YarnProgram data with one more YarnTranslation (localizations is the last field).
+pub fn yarn_program_add(data: &[u8], lang: &str, table: PPtr) -> Result<Vec<u8>> {
+    let p = yarn_program(data)?;
+    if p.localizations.iter().any(|l| l.0 == lang) {
+        bail!("YarnProgram {} already has {lang}", p.name);
+    }
+    // the count sits right before the entries: walk back from the end over the entries
+    let entries: usize = p.localizations.iter().map(|(l, _)| 4 + (l.len() + 3) / 4 * 4 + 12).sum();
+    let count_at = data.len() - entries - 4;
+    let mut out = data[..count_at].to_vec();
+    out.extend_from_slice(&((p.localizations.len() + 1) as i32).to_le_bytes());
+    out.extend_from_slice(&data[count_at + 4..]);
+    put_str(&mut out, lang);
+    out.extend_from_slice(&table.file.to_le_bytes());
+    out.extend_from_slice(&table.path.to_le_bytes());
+    yarn_program(&out)?;
+    Ok(out)
+}
+
+/// LanguageManager data with one more language at the end of `languages`.
+pub fn language_manager_add(data: &[u8], l: &Language) -> Result<Vec<u8>> {
+    let (langs, _) = language_manager(data)?;
+    if langs.iter().any(|x| x.code == l.code) {
+        bail!("LanguageManager already has {}", l.code);
+    }
+    // header, currentLanguage, then count: the count is at the end of currentLanguage
+    let (r, _, _) = mono_start(data)?;
+    let mut rr = Reader::new(data, false);
+    rr.pos = r.pos;
+    rr.i32()?;
+    rd_str(&mut rr)?;
+    rd_str(&mut rr)?;
+    rr.i32()?;
+    let count_at = rr.pos;
+    let entries_end = count_at + 4 + langs.iter().map(|x| 4 + 4 + (x.display_name.len() + 3) / 4 * 4 + 4 + (x.code.len() + 3) / 4 * 4 + 4).sum::<usize>();
+    let mut out = data[..count_at].to_vec();
+    out.extend_from_slice(&((langs.len() + 1) as i32).to_le_bytes());
+    out.extend_from_slice(&data[count_at + 4..entries_end]);
+    out.extend_from_slice(&l.kind.to_le_bytes());
+    put_str(&mut out, &l.display_name);
+    put_str(&mut out, &l.code);
+    out.extend_from_slice(&l.csv_index.to_le_bytes());
+    out.extend_from_slice(&data[entries_end..]);
+    let (check, _) = language_manager(&out)?;
+    if check.last().map(|x| &x.code) != Some(&l.code) {
+        bail!("LanguageManager rewrite failed");
+    }
+    Ok(out)
 }

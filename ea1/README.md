@@ -22,6 +22,9 @@ ea1 roundtrip [--game FOLDER]                  # czy każdy plik zapisuje się z
 ea1 scripts   [FILTR]                          # nazwy klas wszystkich MonoScriptów
 ea1 dump      FILTR                            # surowe dane MonoBehaviourów danej klasy (hex)
 ea1 find      TEKST                            # obiekty, których dane zawierają tekst
+ea1 testlang  --out FOLDER                     # wersja testowa polskiego jako 5. języka ([PL] + angielski)
+ea1 ilcheck                                    # stan łatki IL w Assembly-CSharp.dll (Original/Patched)
+ea1 crc       PACZKA                           # CRC32 paczki, jak w katalogu Addressables
 ```
 
 ## Gdzie są teksty
@@ -82,15 +85,42 @@ Co od czego zależy (z metadanych i wywołań w `Assembly-CSharp.dll`):
   enumie z powrotem do domyślnej; `LocalizedMaterials` używa `First()` – dla nieznanego enuma rzuci wyjątek
   w obsłudze `OnLanguageSet` (może przerwać pozostałe obsługi zmiany języka).
 
-Enum ma tylko 4 wartości, więc „prawdziwy” piąty język wymaga zmiany kodu (IL w Assembly-CSharp.dll).
-Bez zmiany kodu do wyboru:
+Enum ma tylko 4 wartości, więc gra sama z siebie nie obsłuży piątego języka.
 
-1. **Polski w miejscu hiszpańskiego**: wpis 1 → „Polski”, `csvIndex` na nową kolumnę 7, polskie teksty
-   w tablicach Yarn `(es)` i napisach `_es`; wpisy grafik/materiałów dla enuma 1 przekierować na angielskie.
-   Pełne spolszczenie, angielski nietknięty, kosztem hiszpańskiego.
-2. **Polski jako piąty wpis z enumem 0 (angielskim)**, kod `pl`, `csvIndex` 7: interfejs po polsku, grafiki
-   angielskie, ale dialogi i napisy tylko przez nadpisanie angielskich.
-3. **Łatka IL**: piąty język z enumem 4 + wpis w `escapeLanguageToYarn` + poprawka `First()`.
+## Polski jako piąty język (wybrana droga)
+
+Polski dostaje w `languages` wpis `{type: 0 (English), "Polski", "pl", csvIndex 7}`. Wszystko, co idzie
+po enumie (grafiki, materiały, kolory krzeseł, odpowiedzi zagadek zależne od języka, format telefonu),
+zachowuje się jak po angielsku. Tak ma być, bo grafik nie tłumaczymy. Dwie małe łatki IL w
+`Assembly-CSharp.dll` (moduł `il.rs`) rozróżniają polski i angielski tam, gdzie to potrzebne. Obie są
+w miejscu, z `nop`, bez zmian w metadanych, i dopasowane do dokładnych bajtów oryginału:
+
+1. `VisualNovelManager.InitializeVisualNovel`: język Yarn = `currentLanguage.languageCode` zamiast słownika
+   enum→kod (dla en/es/fr/de wartości są te same, dla polskiego „pl”). YarnSpinner bierze wtedy
+   `YarnTranslation` o `languageName == "pl"`, a gdy go brak, tablicę bazową.
+2. `LanguageManager.get_IsCurrentLanguageDefault`: `csvIndex == 1` zamiast porównania enumów, więc dla
+   polskiego gra szuka napisów `<klip>_pl` (`SubtitleDisplayer`) i wpisów `VoSubtitleData`, a gdy ich brak,
+   pokazuje angielskie.
+
+Dane:
+- `LanguageManager` (paczka Addressables): nowy wpis;
+- GameplayStrings: kolumna 7 „Polish”;
+- każdy `YarnProgram` (185 w obu paczkach): `YarnTranslation {"pl", TextAsset "<program> (pl)"}`;
+- paczka Addressables ma CRC w `catalog.json` (CRC32 nieskompresowanych danych, sprawdzone na
+  oryginale): podmieniamy liczbę z dopełnieniem spacjami, żeby długość JSON-u się nie zmieniła.
+
+`ea1 testlang --out FOLDER` buduje to wszystko z angielskimi tekstami oznaczonymi „[PL] ” (pliki w układzie
+folderu gry, gry nie dotyka). Sprawdzone poza grą: `ilcheck` = Patched, `extract` z wyniku widzi
+5 języków, kolumnę Polish i 1152 kwestie `pl`, UnityPy czyta przepakowaną paczkę Addressables i widzi
+tłumaczenia `pl`. **Nie sprawdzone w grze.**
+
+Zostaje do zrobienia:
+- napisy do nagrań: nowe TextAssety `<klip>_pl` w `resources.assets` + wpisy w kontenerze
+  `ResourceManager` (Resources.Load) oraz wpisy `{0, pl}` w `VoSubtitleData`;
+- polskie litery w fontach SDF (jak w EA2);
+- `ea1 patch/restore` z kopiami oryginałów (`kopie`), magazyn tłumaczeń i `warsztat-ea1`;
+- wykrywanie polskiego systemu (słownik `SystemLanguageToLanguageType` w kodzie) – na razie polski
+  wybiera się w menu, a gra zapamiętuje kod `pl`.
 
 ## Plan wgrywania
 

@@ -23,7 +23,7 @@ fn project_root() -> PathBuf {
 fn main() -> Result<()> {
     let args: Vec<String> = std::env::args().collect();
     let game = Game { dir: PathBuf::from(arg(&args, "--game").unwrap_or(DEFAULT_GAME.into())) };
-    if !game.is_valid() {
+    if args.get(1).map(|s| s.as_str()) != Some("crc") && !game.is_valid() {
         bail!("To nie jest folder gry Escape Academy: {}", game.dir.display());
     }
     match args.get(1).map(|s| s.as_str()) {
@@ -224,6 +224,28 @@ fn main() -> Result<()> {
             println!("{same} files identical after write, {diff} differ");
             Ok(())
         }
+        Some("crc") => {
+            // CRC32 of a bundle's uncompressed data (what the Addressables catalog stores)
+            let Some(path) = args.get(2) else { bail!("bundle path required") };
+            let b = unity::Bundle::read(&std::fs::read(path)?)?;
+            let mut h = crc32fast::Hasher::new();
+            for n in &b.nodes {
+                h.update(&n.data);
+            }
+            println!("{}", h.finalize());
+            Ok(())
+        }
+        Some("ilcheck") => {
+            // is Assembly-CSharp.dll the original, our patched one, or unknown?
+            let dll = std::fs::read(game.managed().join("Assembly-CSharp.dll"))?;
+            println!("{:?}", ea1::il::state(&dll)?);
+            Ok(())
+        }
+        Some("testlang") => {
+            // test build of the fifth language ([PL]-marked English) into --out (never into the game)
+            let Some(out) = arg(&args, "--out") else { bail!("--out FOLDER is required") };
+            ea1::testlang::build(&game, std::path::Path::new(&out), &mut |m| println!("{m}"))
+        }
         Some("extract") => {
             let out = PathBuf::from(arg(&args, "--out").unwrap_or_else(|| project_root().join("extracted_ea1").to_string_lossy().into()));
             ea1::extract::extract(&game, &out, &mut |m| println!("{m}"))
@@ -231,6 +253,8 @@ fn main() -> Result<()> {
         _ => {
             println!("ea1 extract [--game DIR] [--out DIR]   texts of Escape Academy into extracted_ea1/");
             println!("ea1 scan [--game DIR]                  MonoBehaviour scripts with readable strings");
+            println!("ea1 testlang --out DIR [--game DIR]    test build of Polish as a 5th language ([PL]-marked English)");
+            println!("ea1 ilcheck [--game DIR]               state of the IL patch in Assembly-CSharp.dll");
             Ok(())
         }
     }
