@@ -26,6 +26,9 @@ pub struct Config {
     pub knows: fn(&str) -> bool,
     /// ...and this is one of them
     pub known_original: fn(&str, &str) -> bool,
+    /// How the player gets the original game files back (shown in errors), e.g.
+    /// "aplikacja Xbox: Zarządzaj > Pliki > Sprawdź i napraw"
+    pub repair_hint: &'static str,
 }
 
 #[derive(Serialize, Deserialize, Default, Clone)]
@@ -119,10 +122,11 @@ impl Originals {
         // An existing backup is only ever replaced when we know the game file is not ours: we wrote
         // a different file before (so the game replaced it: update or repair). In every unclear case
         // stop instead of guessing - a wrong guess overwrites the only clean copy.
+        let hint = self.cfg.repair_hint;
         let unclear = || {
             anyhow::anyhow!(
                 "{name}: plik w grze różni się od kopii zapasowej i nie wiadomo, czy jest oryginałem. \
-                 Nic nie zmieniono. Przywróć oryginalne pliki gry (aplikacja Xbox: Zarządzaj > Pliki > Sprawdź i napraw) i spróbuj ponownie."
+                 Nic nie zmieniono. Przywróć oryginalne pliki gry ({hint}) i spróbuj ponownie."
             )
         };
         if st.as_ref().map_or(false, |s| (self.cfg.known_patched)(&name, &s.original)) {
@@ -188,7 +192,7 @@ impl Originals {
             }
         }
         if (cfg.known_patched)(&name, &current) {
-            anyhow::bail!("{name}: w grze jest spolszczona wersja, a brak jej oryginału. Przywróć oryginalne pliki gry (aplikacja Xbox: Zarządzaj > Pliki > Sprawdź i napraw).");
+            anyhow::bail!("{name}: w grze jest spolszczona wersja, a brak jej oryginału. Przywróć oryginalne pliki gry ({}).", cfg.repair_hint);
         }
         Ok(game_file.to_path_buf())
     }

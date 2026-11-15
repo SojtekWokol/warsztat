@@ -741,9 +741,13 @@ dependencies = [
  "base64 0.22.1",
  "crc32fast",
  "ea2",
+ "kopie",
+ "regex",
+ "serde",
  "serde_json",
  "ttf-parser",
  "unity",
+ "warsztat-base",
 ]
 
 [[package]]
@@ -4173,6 +4177,17 @@ dependencies = [
  "serde",
  "serde_json",
  "ureq",
+]
+
+[[package]]
+name = "warsztat-ea1"
+version = "0.1.0"
+dependencies = [
+ "ea1",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "warsztat-base",
 ]
 
 [[package]]

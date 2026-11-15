@@ -1,6 +1,23 @@
 # ea1 – Escape Academy (część 1)
 
-Pierwszy krok do spolszczenia części 1: wyciąganie tekstów. Wgrywania jeszcze nie ma.
+Spolszczenie części 1: wyciąganie tekstów, wgrywanie polskiego jako piątego języka, adapter warsztatu.
+
+## Projekt i warsztat
+
+Projekt EA1 to folder `ea1/` obok tłumaczenia EA2 (w repozytorium tłumaczeń trafia tylko
+`ea1/translations/pl`):
+
+- `ea1/translations/pl/**.json` – magazyn tłumaczeń (ten sam format co EA2): `scenki/<pokój>.json`,
+  `rozmowy.json`, `pokoje/<pokój>.json`, `kampus.json`, `interfejs.json`, `napisy.json`, `nazwy.json`;
+- `ea1/extracted/` – teksty gry (robione przy pierwszym starcie z czystych plików gry);
+- `ea1/backup/<id instalacji>/` – kopie oryginałów (`kopie`, znacznik `Escape Academy_Data/ea1_pl.json`).
+
+Identyfikatory: `g:<klucz GameplayStrings>`, `y:<id kwestii Yarn>` (kwestia bez przedrostka „Postać:”,
+który w grze zostaje angielski, bo gra po nim wybiera mówiącą postać), `v:<klip>` (napis do nagrania –
+jeszcze nie wgrywany).
+
+`rust/target/release/warsztat-ea1.exe` – warsztat (interfejs skopiowany z EA2); „Wgraj do gry” robi to samo
+co `ea1 patch`, „Uruchom grę” odpala `Escape Academy.exe`.
 
 ## Gra
 
@@ -22,6 +39,8 @@ ea1 roundtrip [--game FOLDER]                  # czy każdy plik zapisuje się z
 ea1 scripts   [FILTR]                          # nazwy klas wszystkich MonoScriptów
 ea1 dump      FILTR                            # surowe dane MonoBehaviourów danej klasy (hex)
 ea1 find      TEKST                            # obiekty, których dane zawierają tekst
+ea1 patch     [--dry-run] [--out FOLDER]      # polski z ea1/translations do gry (kopie w ea1/backup/)
+ea1 restore                                    # oryginalne pliki gry z kopii
 ea1 testlang  --out FOLDER                     # wersja testowa polskiego jako 5. języka ([PL] + angielski)
 ea1 ilcheck                                    # stan łatki IL w Assembly-CSharp.dll (Original/Patched)
 ea1 crc       PACZKA                           # CRC32 paczki, jak w katalogu Addressables
@@ -131,16 +150,8 @@ tłumaczenia `pl`. **Nie sprawdzone w grze.**
 Zostaje do zrobienia:
 - napisy do nagrań: nowe TextAssety `<klip>_pl` w `resources.assets` + wpisy w kontenerze
   `ResourceManager` (Resources.Load) oraz wpisy `{0, pl}` w `VoSubtitleData`;
-- polskie litery w fontach SDF (jak w EA2);
-- `ea1 patch/restore` z kopiami oryginałów (`kopie`), magazyn tłumaczeń i `warsztat-ea1`;
-- wykrywanie polskiego systemu (słownik `SystemLanguageToLanguageType` w kodzie) – na razie polski
-  wybiera się w menu, a gra zapamiętuje kod `pl`.
-
-## Plan wgrywania
-
-To samo co w EA2 dla `data.unity3d`: podmienić TextAssety (CSV z kolumną polską albo nadpisaną
-kolumną języka), zapisać pliki serializowane i przepakować paczkę. Zapis jest gotowy: `roundtrip`
-daje 88/88 plików identycznych. Do ustalenia: jak gra wybiera język (kolumna CSV, `LanguageManager`)
-– czy da się dodać polski jako piąty język, czy podmieniamy np. hiszpański.
-Propozycja: crate `ea1` jak `ea2` (`extract`, `patch`, `restore`, `fonts` ze wspólnym kodem SDF
-przeniesionym do osobnego crate'a) i `warsztat-ea1` z implementacją `Game` z `warsztat-base`.
+- fonty Contra i RockSalt (brak plików źródłowych), sprawdzić college/DS-DIGI/DOTMATRI i LiberationSans;
+- polskie imiona mówiących (przedrostek „Postać:” w Yarn) – sprawdzić, czy gra dobiera po nim postać;
+- teksty wpisane w komponenty TMP (napisy końcowe) i wykrywanie polskiego systemu
+  (`SystemLanguageToLanguageType` w kodzie) – na razie polski wybiera się w menu, a gra zapamiętuje kod `pl`;
+- wspólny interfejs warsztatu dla EA1 i EA2 (dziś `warsztat-ea1/ui` to kopia `warsztat-ea2/ui`).

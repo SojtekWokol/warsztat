@@ -20,6 +20,11 @@ fn project_root() -> PathBuf {
     }
 }
 
+/// Backups of one game installation: ea1/backup/<folder id> (or --backup DIR).
+fn backup_dir(root: &std::path::Path, game: &Game, args: &[String]) -> PathBuf {
+    arg(args, "--backup").map(PathBuf::from).unwrap_or_else(|| root.join("backup").join(kopie::folder_id(&game.dir)))
+}
+
 fn main() -> Result<()> {
     let args: Vec<String> = std::env::args().collect();
     let game = Game { dir: PathBuf::from(arg(&args, "--game").unwrap_or(DEFAULT_GAME.into())) };
@@ -250,7 +255,26 @@ fn main() -> Result<()> {
                 None => Default::default(),
             };
             let fonts = arg(&args, "--fonts").map(PathBuf::from).unwrap_or_else(|| project_root().join("fonts"));
-            ea1::testlang::build(&game, std::path::Path::new(&out), &polish, &fonts, &mut |m| println!("{m}"))
+            ea1::testlang::build_test(&game, std::path::Path::new(&out), &polish, &fonts, &mut |m| println!("{m}"))
+        }
+        Some("patch") => {
+            // Polish from ea1/translations into the game (originals backed up in ea1/backup/<game id>)
+            let root = ea1::project_root().ok_or_else(|| anyhow::anyhow!("no ea1/translations folder found"))?;
+            let store = warsztat::store::read_texts(&root.join("translations").join("pl"))?;
+            let fonts = arg(&args, "--fonts").map(PathBuf::from).unwrap_or_else(|| project_root().join("fonts"));
+            let backup = backup_dir(&root, &game, &args);
+            let out = arg(&args, "--out").map(PathBuf::from);
+            println!("translations: {} texts", store.len());
+            ea1::patch::run(
+                ea1::patch::Options { game: &game, store: &store, fonts_dir: &fonts, backup_dir: &backup, out_dir: out.as_deref(), dry_run: args.iter().any(|a| a == "--dry-run") },
+                &mut |m| println!("{m}"),
+            )
+        }
+        Some("restore") => {
+            let root = ea1::project_root().ok_or_else(|| anyhow::anyhow!("no ea1/translations folder found"))?;
+            let (done, skipped) = ea1::patch::restore(&game, &backup_dir(&root, &game, &args))?;
+            println!("restored {done} files, skipped {skipped}");
+            Ok(())
         }
         Some("extract") => {
             let out = PathBuf::from(arg(&args, "--out").unwrap_or_else(|| project_root().join("extracted_ea1").to_string_lossy().into()));
@@ -259,6 +283,8 @@ fn main() -> Result<()> {
         _ => {
             println!("ea1 extract [--game DIR] [--out DIR]   texts of Escape Academy into extracted_ea1/");
             println!("ea1 scan [--game DIR]                  MonoBehaviour scripts with readable strings");
+            println!("ea1 patch [--game DIR] [--dry-run] [--out DIR]   Polish from ea1/translations into the game");
+            println!("ea1 restore [--game DIR]               put the original game files back");
             println!("ea1 testlang --out DIR [--pl FILE]     test build of Polish as a 5th language ([PL]-marked English)");
             println!("ea1 ilcheck [--game DIR]               state of the IL patch in Assembly-CSharp.dll");
             Ok(())

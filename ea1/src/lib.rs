@@ -5,7 +5,10 @@
 //! the few MonoBehaviours we need (YarnProgram) use hand-written layouts - see `yarn_program`.
 pub mod extract;
 pub mod il;
+pub mod known;
+pub mod patch;
 pub mod testlang;
+pub mod workshop;
 
 use anyhow::{bail, Result};
 use std::collections::HashMap;
@@ -17,6 +20,24 @@ pub const DEFAULT_GAME: &str = r"C:\Users\grejs\Epic Games\EscapeAcademyOcy7i";
 
 pub struct Game {
     pub dir: PathBuf,
+}
+
+/// The EA1 project folder (the workshop root): `ea1/` next to the EA2 translation folder, holding
+/// translations/pl (the EA1 store), extracted/ and backup/. Searched upwards from the working folder
+/// and the program; `ea1/` itself or any folder above it.
+pub fn project_root() -> Option<PathBuf> {
+    let starts = [std::env::current_dir().ok(), std::env::current_exe().ok()];
+    starts.into_iter().flatten().find_map(|p| {
+        p.ancestors().find_map(|d| {
+            if d.file_name().map_or(false, |n| n == "ea1") && d.join("translations").is_dir() {
+                Some(d.to_path_buf())
+            } else if d.join("ea1").join("translations").is_dir() {
+                Some(d.join("ea1"))
+            } else {
+                None
+            }
+        })
+    })
 }
 
 impl Game {

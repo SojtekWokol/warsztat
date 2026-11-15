@@ -12,8 +12,9 @@ podpowiedzi z lokalnego modelu Bielik, kontrola znaczników, poprawki z plików,
 | `unity` | odczyt i zapis paczek Unity (UnityFS, pliki serializowane format 22: Unity 2020.1+ i Unity 6, type trees) |
 | `kopie` | kopie oryginalnych plików gry, bezpieczne przy aktualizacjach gry i między narzędziami (znacznik w folderze gry) |
 | `warsztat-base` | wspólny rdzeń warsztatu: magazyn tłumaczeń, API dla interfejsu, kontrole, słownik, Bielik, poprawki, wydania |
-| `ea1` | Escape Academy (część 1): wyciąganie tekstów z gry (na razie bez wgrywania), opis w `ea1/README.md` |
+| `ea1` | Escape Academy (część 1): wyciąganie tekstów, wgrywanie polskiego jako 5. języka (łatka IL, dialogi, teksty, fonty), adapter warsztatu; opis w `ea1/README.md` |
 | `ea2` | Escape Academy 2: wyciąganie tekstów z gry, wgrywanie tłumaczenia (teksty, dialogi Yarn, polskie litery w fontach SDF, katalog Addressables), adapter warsztatu |
+| `warsztat-ea1` | aplikacja warsztatu EA1 (Tauri, ten sam interfejs co EA2; projekt w `ea1/` obok tłumaczenia EA2) |
 | `warsztat-ea2` | aplikacja warsztatu EA2 (Tauri) |
 | `instalator-base` | wspólny instalator dla graczy: okno, szukanie gry (Xbox, Steam), uprawnienia folderu, instalacja i przywracanie z postępem |
 | `instalator` | instalator spolszczenia EA2: wtyczka do `instalator-base` z łatką, tłumaczeniem, fontami i wyglądem EA2 |
@@ -35,6 +36,8 @@ Narzędzia wiersza poleceń `ea1` i `ea2`:
 
 ```
 ea1 extract [--game FOLDER_GRY]           # teksty części 1 do extracted_ea1/ (też: scan, tmpscan, fonts, roundtrip)
+ea1 patch   [--game FOLDER_GRY]           # polski z ea1/translations do gry (kopie oryginałów w ea1/backup/)
+ea1 restore [--game FOLDER_GRY]           # przywrócenie oryginałów części 1
 ea2 extract [--content FOLDER_GRY]        # teksty i obrazki z gry do extracted/ i cache/vn
 ea2 patch   [--content FOLDER_GRY]        # wgranie tłumaczenia (kopie oryginałów w backup/)
 ea2 restore [--content FOLDER_GRY]        # przywrócenie oryginałów

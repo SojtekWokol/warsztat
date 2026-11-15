@@ -9,6 +9,7 @@ pub const CONFIG: Config = Config {
     known_patched: crate::known::is_patched,
     knows: crate::known::knows,
     known_original: crate::known::is_original,
+    repair_hint: "aplikacja Xbox: Zarządzaj > Pliki > Sprawdź i napraw",
 };
 
 pub type Originals = kopie::Originals;

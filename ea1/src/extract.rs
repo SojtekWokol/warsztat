@@ -121,9 +121,14 @@ pub fn extract(game: &Game, out: &Path, log: &mut dyn FnMut(String)) -> Result<(
     if !game.is_valid() {
         bail!("To nie jest folder gry Escape Academy: {}", game.dir.display());
     }
+    extract_bundles(&game.bundles(), out, log)
+}
+
+/// Extraction from given bundle files (e.g. the clean copies when the game holds our patch).
+pub fn extract_bundles(bundles: &[std::path::PathBuf], out: &Path, log: &mut dyn FnMut(String)) -> Result<()> {
     std::fs::create_dir_all(out)?;
     let t = std::time::Instant::now();
-    let files = Files::load(game)?;
+    let files = Files::load_bundles(bundles)?;
     log(format!("{} serialized files read in {:.0} s", files.files.len(), t.elapsed().as_secs_f64()));
 
     // every TextAsset once (the same asset can sit in several files)
