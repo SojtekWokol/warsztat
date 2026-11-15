@@ -756,7 +756,8 @@ $("cards-page").onclick = () => {
   cardsOpen("page", page.title, rows.map((x) => ({ ...x })));
 };
 $("imp-cards").onclick = () => {
-  const usable = importItems.filter((x) => x.status === "nowa" || x.status === "zmiana" || x.status === "konflikt");
+  // "jest" too: a review file may list our current texts just to approve them on cards
+  const usable = importItems.filter((x) => x.status === "nowa" || x.status === "zmiana" || x.status === "konflikt" || x.status === "jest");
   $("import").classList.add("hidden");
   // notes written as "Speaker: reason" give the card its speaker
   cardsOpen("import", "Poprawki z pliku", usable.map((x) => {
