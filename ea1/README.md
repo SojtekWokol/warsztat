@@ -109,7 +109,7 @@ Dane:
 - paczka Addressables ma CRC w `catalog.json` (CRC32 nieskompresowanych danych, sprawdzone na
   oryginale): podmieniamy liczbę z dopełnieniem spacjami, żeby długość JSON-u się nie zmieniła.
 
-`ea1 testlang --out FOLDER` buduje to wszystko z angielskimi tekstami oznaczonymi „[PL] ” (pliki w układzie
+`ea1 testlang --out FOLDER [--pl PLIK]` buduje to wszystko z angielskimi tekstami oznaczonymi „[PL] ” (albo gotowymi polskimi kwestiami Yarn z pliku JSON `{id kwestii: tekst}`) (pliki w układzie
 folderu gry, gry nie dotyka). Sprawdzone poza grą: `ilcheck` = Patched, `extract` z wyniku widzi
 5 języków, kolumnę Polish i 1152 kwestie `pl`, UnityPy czyta przepakowaną paczkę Addressables i widzi
 tłumaczenia `pl`. **Nie sprawdzone w grze.**

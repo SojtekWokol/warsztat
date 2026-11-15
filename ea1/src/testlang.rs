@@ -12,7 +12,7 @@ use crate::extract::parse_csv;
 use crate::{base_name, il, language_manager_add, text_asset, text_asset_data, yarn_program, yarn_program_add, Files, Game, Language, PPtr};
 use anyhow::{anyhow, bail, Context, Result};
 use base64::Engine;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
 pub const POLISH: &str = "pl";
@@ -61,14 +61,14 @@ fn gameplay_with_polish(body: &[u8]) -> Result<Vec<u8>> {
     Ok(write_csv(&rows, eol).into_bytes())
 }
 
-/// Yarn string table (id,text,file,node,lineNumber) with marked texts.
-fn yarn_table_marked(body: &[u8]) -> Vec<u8> {
+/// Yarn string table (id,text,file,node,lineNumber) with marked texts, or the given Polish line.
+fn yarn_table_marked(body: &[u8], polish: &HashMap<String, String>) -> Vec<u8> {
     let text = String::from_utf8_lossy(body);
     let eol = if text.contains("\r\n") { "\r\n" } else { "\n" };
     let mut rows = parse_csv(&text);
     for r in rows.iter_mut().skip(1) {
         if r.len() >= 2 {
-            r[1] = mark(&r[1]);
+            r[1] = polish.get(&r[0]).cloned().unwrap_or_else(|| mark(&r[1]));
         }
     }
     write_csv(&rows, eol).into_bytes()
@@ -108,7 +108,8 @@ pub fn catalog_update(catalog: &str, hash: &str, crc: u32, size: u64) -> Result<
     Ok(serde_json::to_string(&v)?)
 }
 
-pub fn build(game: &Game, out: &Path, log: &mut dyn FnMut(String)) -> Result<()> {
+/// `polish`: finished Polish Yarn lines {line id: text} used instead of the marked English.
+pub fn build(game: &Game, out: &Path, polish: &HashMap<String, String>, log: &mut dyn FnMut(String)) -> Result<()> {
     let mut files = Files::load(game)?;
     log(format!("{} files from {} bundles", files.files.len(), files.bundles.len()));
     let mut changed: HashSet<usize> = HashSet::new();
@@ -124,7 +125,7 @@ pub fn build(game: &Game, out: &Path, log: &mut dyn FnMut(String)) -> Result<()>
             let (_, base) = files.deref(fi, p.base_table).ok_or_else(|| anyhow!("{}: base table not found", p.name))?;
             let (bname, body) = text_asset(&base.data)?;
             let name = format!("{} ({POLISH})", bname.rsplit_once(" (").map_or(bname.as_str(), |x| x.0));
-            adds.push((fi, o.path_id, name, yarn_table_marked(&body)));
+            adds.push((fi, o.path_id, name, yarn_table_marked(&body, polish)));
         }
     }
     for (fi, prog, name, body) in &adds {

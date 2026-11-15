@@ -244,7 +244,12 @@ fn main() -> Result<()> {
         Some("testlang") => {
             // test build of the fifth language ([PL]-marked English) into --out (never into the game)
             let Some(out) = arg(&args, "--out") else { bail!("--out FOLDER is required") };
-            ea1::testlang::build(&game, std::path::Path::new(&out), &mut |m| println!("{m}"))
+            // --pl FILE: finished Polish Yarn lines {line id: text} instead of the marked English
+            let polish: std::collections::HashMap<String, String> = match arg(&args, "--pl") {
+                Some(p) => serde_json::from_str(&std::fs::read_to_string(&p)?)?,
+                None => Default::default(),
+            };
+            ea1::testlang::build(&game, std::path::Path::new(&out), &polish, &mut |m| println!("{m}"))
         }
         Some("extract") => {
             let out = PathBuf::from(arg(&args, "--out").unwrap_or_else(|| project_root().join("extracted_ea1").to_string_lossy().into()));
@@ -253,7 +258,7 @@ fn main() -> Result<()> {
         _ => {
             println!("ea1 extract [--game DIR] [--out DIR]   texts of Escape Academy into extracted_ea1/");
             println!("ea1 scan [--game DIR]                  MonoBehaviour scripts with readable strings");
-            println!("ea1 testlang --out DIR [--game DIR]    test build of Polish as a 5th language ([PL]-marked English)");
+            println!("ea1 testlang --out DIR [--pl FILE]     test build of Polish as a 5th language ([PL]-marked English)");
             println!("ea1 ilcheck [--game DIR]               state of the IL patch in Assembly-CSharp.dll");
             Ok(())
         }
