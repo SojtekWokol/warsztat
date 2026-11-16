@@ -106,6 +106,40 @@ impl Default for Ea2 {
     }
 }
 
+impl Ea2 {
+    /// The page a text lives on (its scene, conversation, speaker or area): search results link there,
+    /// so the line can be read with the ones around it.
+    fn home_page(&self, e: &Entry) -> String {
+        static SCENE_OF: OnceLock<HashMap<String, String>> = OnceLock::new();
+        if e.src == "y" {
+            let map = SCENE_OF.get_or_init(|| {
+                let mut m = HashMap::new();
+                for s in self.scenes() {
+                    let node = s["node"].as_str().unwrap_or_default().to_string();
+                    for l in s["lines"].as_array().into_iter().flatten() {
+                        if let Some(id) = l["id"].as_str() {
+                            m.entry(format!("y:{id}")).or_insert_with(|| node.clone());
+                        }
+                    }
+                }
+                m
+            });
+            if let Some(node) = map.get(&e.id) {
+                return format!("scene:{node}");
+            }
+        }
+        if e.src == "n" {
+            return format!("talk:{}", talk_group(e.node.as_deref().unwrap_or("")));
+        }
+        if e.area == "WLD" {
+            if let Some(sp) = e.speaker.as_deref().filter(|s| !s.is_empty()) {
+                return format!("who:{sp}");
+            }
+        }
+        format!("area:{}", e.area)
+    }
+}
+
 fn talk_group(node: &str) -> String {
     if node.ends_with('_') {
         return node.to_string(); // Python: re.sub(r"_[^_]+$", "", node) needs one character after "_"
@@ -412,6 +446,7 @@ impl Game for Ea2 {
         m.insert("who".into(), json!(self.who_label(e.speaker.as_deref().unwrap_or(""))));
         let st = if e.src == "y" { self.line_stage.get().unwrap().get(&e.key).cloned() } else { None };
         m.insert("stage".into(), st.unwrap_or(Value::Null));
+        m.insert("home".into(), json!(self.home_page(e)));
         m
     }
 

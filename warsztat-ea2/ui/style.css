@@ -179,6 +179,7 @@ aside { display: flex; flex-direction: column; gap: 16px; overflow: auto; min-he
 #edit-title { color: var(--t2); font-weight: 800; }
 .ed-top { display: flex; gap: 10px; align-items: center; }
 .ed-key { font: 22px/1 var(--key); color: var(--clue); }
+.ed-home { margin-left: auto; font-size: 13px; padding: 4px 10px; }
 .kind { font-size: 12px; font-weight: 800; border: 2px solid var(--ink); background: var(--wine-3); padding: 1px 9px 2px; border-radius: 99px; }
 .en { background: var(--plum); border: 3px solid var(--ink); border-radius: var(--r); padding: 12px; white-space: pre-wrap; min-height: 3em; font-size: 16px; }
 .en .tag { font: 15px var(--key); color: var(--t3); }

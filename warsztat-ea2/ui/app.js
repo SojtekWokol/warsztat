@@ -147,6 +147,22 @@ async function loadPage(key, keep) {
   $("t-rows").querySelectorAll("tr[data-n]").forEach((tr) => tr.onclick = () => { pick(+tr.dataset.n); if (NARROW.matches) openDrawer(); });
   pick(Math.min(keep ?? 0, r.rows.length - 1));
 }
+// "Show in context" from a search, and back to the search results
+let back = null; // {key, n}: the list we came from
+$("ed-home").onclick = async () => {
+  const x = page && page.rows[current];
+  if (!x) return;
+  if (back && page.key !== back.key && (!x.home || x.home === page.key)) {
+    const b = back; back = null;
+    await loadPage(b.key, b.n);
+    return;
+  }
+  if (!x.home) return;
+  back = { key: page.key, n: current };
+  await loadPage(x.home);
+  const n = page.rows.findIndex((r) => r.id === x.id);
+  if (n >= 0) pick(n);
+};
 function defaultMode(x) {
   if (x.kind === "dialog" || x.kind === "talk") return "scene";
   if (x.kind === "vo") return "sub";
@@ -163,6 +179,11 @@ function pick(n) {
   const x = page.rows[n];
   $("ed-key").textContent = x.key;
   $("ed-kind").textContent = KIND[x.kind] || x.kind;
+  // from a search (or any other list) jump to the scene / conversation the line belongs to
+  const canBack = back && page.key !== back.key;
+  const toHome = x.home && x.home !== page.key;
+  $("ed-home").textContent = toHome ? "Pokaż w kontekście" : "← Wróć do wyników";
+  $("ed-home").classList.toggle("hidden", !toHome && !canBack);
   $("en").innerHTML = esc(x.en).replace(/&lt;.*?&gt;|\{[^}]+\}/g, (m) => `<span class="tag">${m}</span>`);
   $("who").textContent = x.who ? "Mówi: " + x.who : "";
   $("note").classList.toggle("hidden", !x.ctx);

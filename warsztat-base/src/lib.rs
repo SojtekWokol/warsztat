@@ -181,14 +181,16 @@ impl Workshop {
         if let Some(e) = cx.entries.iter().find(|e| e.key.to_lowercase() == q) {
             return vec![e];
         }
-        // a text search: every word in the key, the English or the Polish text
-        let words: Vec<&str> = q.split_whitespace().collect();
+        // a text search: every word in the key, the English or the Polish text; forgiving: no case, no Polish
+        // diacritics, no punctuation or tags ("zrozumialam" finds "Zrozumiałam,")
+        let qn = loose(&q);
+        let words: Vec<&str> = qn.split_whitespace().collect();
         if words.is_empty() {
             return vec![];
         }
         let mut found = Vec::new();
         for e in cx.entries {
-            let hay = format!("{} {} {}", e.key, e.en, cx.store.pl(&e.id)).to_lowercase();
+            let hay = loose(&format!("{} {} {}", e.key, e.en, cx.store.pl(&e.id)));
             if words.iter().all(|w| hay.contains(w)) {
                 found.push(e);
                 if found.len() >= 300 {
@@ -396,4 +398,26 @@ impl Workshop {
 /// String field of a JSON object ("" when missing).
 pub fn s<'a>(d: &'a Value, k: &str) -> &'a str {
     d.get(k).and_then(|x| x.as_str()).unwrap_or("")
+}
+
+/// Text for forgiving search: lower case, Polish letters without diacritics, tags and punctuation turned
+/// into spaces (keeps letters, digits and "_" so keys still match).
+fn loose(s: &str) -> String {
+    static TAGS: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+    let s = TAGS.get_or_init(|| regex::Regex::new(r"<[^<>]*>").unwrap()).replace_all(s, " ");
+    s.to_lowercase()
+        .chars()
+        .map(|c| match c {
+            'ą' => 'a',
+            'ć' => 'c',
+            'ę' => 'e',
+            'ł' => 'l',
+            'ń' => 'n',
+            'ó' => 'o',
+            'ś' => 's',
+            'ź' | 'ż' => 'z',
+            c if c.is_alphanumeric() || c == '_' => c,
+            _ => ' ',
+        })
+        .collect()
 }
